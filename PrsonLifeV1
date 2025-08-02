@@ -1,1 +1,204 @@
+--[[
+CALVO MOD - PRISON LIVE V1
+Criado para o mapa PRISON LIFE do Roblox.
+Funcionalidades:
+- Obter Armas
+- Teleportes para locais do mapa
+- Teleporte ao clicar
+- E outras utilidades.
+]]
 
+-- Criação da Interface Principal
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CALVO_MOD_GUI"
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderColor3 = Color3.fromRGB(0, 162, 255)
+MainFrame.BorderSizePixel = 2
+MainFrame.Position = UDim2.new(0.1, 0, 0.1, 0)
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Parent = MainFrame
+Header.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Header.Size = UDim2.new(1, 0, 0, 30)
+Header.BorderSizePixel = 0
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Parent = Header
+Title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(0.8, 0, 1, 0)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "CALVO MOD - PRISON LIVE V1"
+Title.TextColor3 = Color3.fromRGB(0, 162, 255)
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Position = UDim2.new(0.05, 0, 0, 0)
+
+-- Botão de Fechar
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = Header
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.BackgroundTransparency = 0.5
+CloseButton.BorderSizePixel = 0
+CloseButton.Position = UDim2.new(0.9, 0, 0.1, 0)
+CloseButton.Size = UDim2.new(0.08, 0, 0.8, 0)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- Botão de Minimizar
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Parent = Header
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+MinimizeButton.BackgroundTransparency = 0.5
+MinimizeButton.BorderSizePixel = 0
+MinimizeButton.Position = UDim2.new(0.8, 0, 0.1, 0)
+MinimizeButton.Size = UDim2.new(0.08, 0, 0.8, 0)
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.Text = "_"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 14
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Parent = MainFrame
+ContentFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Position = UDim2.new(0, 0, 0.075, 0)
+ContentFrame.Size = UDim2.new(1, 0, 0.925, 0)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    ContentFrame.Visible = not ContentFrame.Visible
+    if ContentFrame.Visible then
+        MainFrame.Size = UDim2.new(0, 300, 0, 400)
+        MinimizeButton.Text = "_"
+    else
+        MainFrame.Size = UDim2.new(0, 300, 0, 30)
+        MinimizeButton.Text = "+"
+    end
+end)
+
+-- Layout para os botões de mods
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ContentFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- Funções do Mod
+local function createButton(text, callback)
+    local Button = Instance.new("TextButton")
+    Button.Parent = ContentFrame
+    Button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    Button.BorderColor3 = Color3.fromRGB(0, 162, 255)
+    Button.Size = UDim2.new(0.9, 0, 0, 30)
+    Button.Font = Enum.Font.SourceSans
+    Button.Text = text
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 16
+    Button.MouseButton1Click:Connect(callback)
+    return Button
+end
+
+-- Botão para pegar armas
+createButton("Pegar todas as armas", function()
+    local items = game:GetService("Workspace")["Prison_ITEMS"].single
+    local player = game.Players.LocalPlayer
+    for i, v in pairs(items:GetChildren()) do
+        if v:IsA("Tool") and (v.Name == "Remington 870" or v.Name == "M9" or v.Name == "AK-47") then
+            pcall(function()
+                game.Players.LocalPlayer.Character.Humanoid:EquipTool(v:Clone())
+            end)
+        end
+    end
+end)
+
+-- Teleportes
+local teleportLocations = {
+    ["Arsenal"] = CFrame.new(-14, 16, -111),
+    ["Base dos Criminosos"] = CFrame.new(650, 17, -46),
+    ["Celular"] = CFrame.new(20, 16, -20),
+    ["Pátio"] = CFrame.new(-100, 16, -25)
+}
+
+for locationName, position in pairs(teleportLocations) do
+    createButton("Teleport: " .. locationName, function()
+        local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.CFrame = position
+        end
+    end)
+end
+
+-- Teleporte com clique
+local clickToTeleportEnabled = false
+local mouse = game.Players.LocalPlayer:GetMouse()
+
+createButton("Teleporte ao Clicar (Ativar/Desativar)", function()
+    clickToTeleportEnabled = not clickToTeleportEnabled
+    if clickToTeleportEnabled then
+        mouse.Button1Down:Connect(function()
+            if clickToTeleportEnabled then
+                local player = game.Players.LocalPlayer
+                local targetPosition = mouse.Hit.p
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    player.Character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
+                end
+            end
+        end)
+    end
+end)
+
+-- Outras Utilidades
+createButton("Vida Infinita (Loop)", function()
+    game:GetService("RunService").Heartbeat:Connect(function()
+        local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.Health = player.Character.Humanoid.MaxHealth
+        end
+    end)
+end)
+
+local noclipEnabled = false
+createButton("Noclip (Ativar/Desativar)", function()
+    noclipEnabled = not noclipEnabled
+    game:GetService("RunService").Stepped:Connect(function()
+        if noclipEnabled and game.Players.LocalPlayer.Character then
+            for _, part in pairs(game.Players.LocalPlayer.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end)
+
+local speedEnabled = false
+createButton("Super Velocidade (Ativar/Desativar)", function()
+    speedEnabled = not speedEnabled
+    local player = game.Players.LocalPlayer
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        if speedEnabled then
+            player.Character.Humanoid.WalkSpeed = 50
+        else
+            player.Character.Humanoid.WalkSpeed = 16 -- Velocidade padrão
+        end
+    end
+end)
