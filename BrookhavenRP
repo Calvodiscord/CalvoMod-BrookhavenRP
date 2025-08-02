@@ -1,0 +1,221 @@
+--[[
+    Script: Brookhaven Fun Mod
+    Versão: 1.0
+    Autor: Gemini AI
+
+    Funcionalidades:
+    - Movimento: Fly, Speed, Noclip.
+    - Utilidades: Click Teleport, Btools (Ferramentas de Construção), Andar sobre a Água.
+    - Interface simples e funcional.
+]]
+
+--==================================================================================--
+--||                                   SERVIÇOS                                   ||--
+--==================================================================================--
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+local mouse = localPlayer:GetMouse()
+
+--==================================================================================--
+--||                                   CONFIGURAÇÕES                                ||--
+--==================================================================================--
+local modStates = {
+    isFlying = false,
+    isNoclipping = false,
+    isSpeedEnabled = false,
+    isClickTeleportEnabled = false,
+    isWalkOnWaterEnabled = false
+}
+local modSettings = {
+    originalWalkSpeed = 16,
+    originalJumpPower = 50,
+    speedValue = 80,
+    flySpeed = 60,
+    waterLevelY = -9.5 -- Nível da água no Brookhaven
+}
+
+--==================================================================================--
+--||                           FUNÇÃO PRINCIPAL DA UI                             ||--
+--==================================================================================--
+local function BuildUI()
+    if localPlayer.PlayerGui:FindFirstChild("BrookhavenFunModGui") then
+        localPlayer.PlayerGui.BrookhavenFunModGui:Destroy()
+    end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "BrookhavenFunModGui"
+    gui.Parent = localPlayer:WaitForChild("PlayerGui")
+    gui.ResetOnSpawn = false
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Parent = gui
+    mainFrame.Size = UDim2.new(0, 200, 0, 280)
+    mainFrame.Position = UDim2.new(0, 10, 0.5, -140)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    mainFrame.Draggable = true
+    mainFrame.Active = true
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Parent = mainFrame
+    listLayout.Padding = UDim.new(0, 5)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local padding = Instance.new("UIPadding")
+    padding.Parent = mainFrame
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+
+    local title = Instance.new("TextLabel")
+    title.Parent = mainFrame
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Text = "Brookhaven Fun Mod"
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    title.LayoutOrder = 0
+    Instance.new("UICorner", title)
+
+    local function createToggleButton(text, stateKey)
+        local button = Instance.new("TextButton")
+        button.Name = text
+        button.Parent = mainFrame
+        button.Size = UDim2.new(1, 0, 0, 35)
+        button.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+        button.Font = Enum.Font.GothamSemibold
+        button.TextSize = 14
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.LayoutOrder = table.getn(mainFrame:GetChildren())
+        Instance.new("UICorner", button)
+
+        local function updateText()
+            local status = modStates[stateKey] and "[ON]" or "[OFF]"
+            button.Text = text .. " " .. status
+            button.BackgroundColor3 = modStates[stateKey] and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(55, 55, 70)
+        end
+        
+        button.MouseButton1Click:Connect(function()
+            modStates[stateKey] = not modStates[stateKey]
+            updateText()
+        end)
+        updateText()
+    end
+    
+    local function createActionButton(text, callback)
+        local button = Instance.new("TextButton")
+        button.Name = text
+        button.Parent = mainFrame
+        button.Size = UDim2.new(1, 0, 0, 35)
+        button.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+        button.Font = Enum.Font.GothamSemibold
+        button.TextSize = 14
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.Text = text
+        button.LayoutOrder = table.getn(mainFrame:GetChildren())
+        Instance.new("UICorner", button)
+        button.MouseButton1Click:Connect(callback)
+    end
+    
+    -- Criar botões
+    createToggleButton("Voar (Fly)", "isFlying")
+    createToggleButton("Correr Rápido", "isSpeedEnabled")
+    createToggleButton("Atravessar Paredes", "isNoclipping")
+    createToggleButton("Teleporte com Clique", "isClickTeleportEnabled")
+    createToggleButton("Andar sobre a Água", "isWalkOnWaterEnabled")
+    createActionButton("Pegar Btools", function()
+        local char = localPlayer.Character
+        if char then
+            pcall(function() char:FindFirstChildOfClass("Humanoid"):UnequipTools() end)
+            Instance.new("HopperBin", localPlayer.Backpack).BinType = Enum.BinType.Build
+            Instance.new("HopperBin", localPlayer.Backpack).BinType = Enum.BinType.Clone
+            Instance.new("HopperBin", localPlayer.Backpack).BinType = Enum.BinType.Hammer
+        end
+    end)
+end
+
+--==================================================================================--
+--||                          LÓGICA CENTRAL (RenderStepped)                      ||--
+--==================================================================================--
+local function onCharacterAdded(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    modSettings.originalWalkSpeed = humanoid.WalkSpeed
+    modSettings.originalJumpPower = humanoid.JumpPower
+    
+    local waterPlatform = nil
+    
+    RunService.RenderStepped:Connect(function()
+        if not character or not character.Parent then return end
+
+        -- Lógica de Speed
+        humanoid.WalkSpeed = modStates.isSpeedEnabled and modSettings.speedValue or modSettings.originalWalkSpeed
+
+        -- Lógica de Noclip
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                pcall(function() part.CanCollide = not modStates.isNoclipping end)
+            end
+        end
+
+        -- Lógica de Fly
+        if modStates.isFlying then
+            humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+            local flyDir = Vector3.new(0,0,0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.E) then flyDir = flyDir + Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Q) then flyDir = flyDir - Vector3.new(0, 1, 0) end
+            humanoid.RootPart.Velocity = flyDir.Unit * modSettings.flySpeed
+        else
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
+        end
+        
+        -- Lógica de Andar na Água
+        if modStates.isWalkOnWaterEnabled and humanoid.RootPart.Position.Y <= modSettings.waterLevelY + 2 then
+            if not waterPlatform then
+                waterPlatform = Instance.new("Part", Workspace)
+                waterPlatform.Anchored = true
+                waterPlatform.CanCollide = true
+                waterPlatform.Transparency = 1
+                waterPlatform.Size = Vector3.new(10, 1, 10)
+            end
+            waterPlatform.CFrame = CFrame.new(humanoid.RootPart.Position.X, modSettings.waterLevelY, humanoid.RootPart.Position.Z)
+        elseif waterPlatform then
+            waterPlatform:Destroy()
+            waterPlatform = nil
+        end
+    end)
+end
+
+--==================================================================================--
+--||                             INICIALIZAÇÃO E EVENTOS                           ||--
+--==================================================================================--
+local function Initialize()
+    pcall(BuildUI)
+    
+    if localPlayer.Character then
+        onCharacterAdded(localPlayer.Character)
+    end
+    localPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+    mouse.Button1Down:Connect(function()
+        if modStates.isClickTeleportEnabled and mouse.Target then
+            local char = localPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
+            end
+        end
+    end)
+end
+
+Initialize()
