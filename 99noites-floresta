@@ -1,0 +1,210 @@
+--[[
+    CALVO MOD - 99 NOITES V1
+    Criado para o mapa: [CRAFTING] 99 Noites na Floresta Roleplay🔦
+    Executor: Delta
+]]
+
+-- INÍCIO DA CRIAÇÃO DA INTERFACE (GUI)
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local TitleLabel = Instance.new("TextLabel")
+local CloseButton = Instance.new("TextButton")
+local MinimizeButton = Instance.new("TextButton")
+local MainContentFrame = Instance.new("Frame")
+
+-- Botões de Ação
+local KillLoboButton = Instance.new("TextButton")
+local KillCoelhoButton = Instance.new("TextButton")
+local KillUrsoButton = Instance.new("TextButton")
+local KillVikingsButton = Instance.new("TextButton")
+
+-- Seção de Teleporte
+local TeleportTitle = Instance.new("TextLabel")
+local TeleportOnClickButton = Instance.new("TextButton")
+local TeleportSafeZoneButton = Instance.new("TextButton") -- Exemplo de local
+
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.Name = "CalvoModV1Gui"
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+MainFrame.BorderColor3 = Color3.fromRGB(85, 85, 127)
+MainFrame.BorderSizePixel = 2
+MainFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
+MainFrame.Size = UDim2.new(0, 300, 0, 400)
+MainFrame.Draggable = true
+MainFrame.Active = true
+
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Parent = MainFrame
+TitleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.Text = "CALVO MOD - 99 NOITES V1"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 18
+
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = MainFrame
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Position = UDim2.new(1, -25, 0, 5)
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Parent = MainFrame
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 255)
+MinimizeButton.Position = UDim2.new(1, -50, 0, 5)
+MinimizeButton.Size = UDim2.new(0, 20, 0, 20)
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.Text = "_"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 14
+
+local isMinimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    MainContentFrame.Visible = not isMinimized
+    if isMinimized then
+        MainFrame.Size = UDim2.new(0, 300, 0, 30)
+    else
+        MainFrame.Size = UDim2.new(0, 300, 0, 400)
+    end
+end)
+
+
+MainContentFrame.Name = "MainContentFrame"
+MainContentFrame.Parent = MainFrame
+MainContentFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+MainContentFrame.Position = UDim2.new(0, 0, 0, 30)
+MainContentFrame.Size = UDim2.new(1, 0, 1, -30)
+MainContentFrame.BorderSizePixel = 0
+
+
+-- FUNÇÕES DO MOD
+
+-- Função para matar Mobs
+local function killMob(mobName)
+    for i, v in pairs(game:GetService("Workspace"):GetDescendants()) do
+        if v:IsA("Model") and v.Name:lower():match(mobName:lower()) then
+            if v:FindFirstChild("Humanoid") then
+                v.Humanoid.Health = 0
+            end
+        end
+    end
+end
+
+-- Configuração dos botões de matar mobs
+KillLoboButton.Parent = MainContentFrame
+KillLoboButton.Name = "KillLoboButton"
+KillLoboButton.Text = "Matar Lobo"
+KillLoboButton.Position = UDim2.new(0.1, 0, 0.1, 0)
+KillLoboButton.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+KillLoboButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+KillLoboButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KillLoboButton.Font = Enum.Font.SourceSans
+KillLoboButton.MouseButton1Click:Connect(function() killMob("Lobo") end) -- OBS: O nome "Lobo" pode variar.
+
+KillCoelhoButton.Parent = MainContentFrame
+KillCoelhoButton.Name = "KillCoelhoButton"
+KillCoelhoButton.Text = "Matar Coelho"
+KillCoelhoButton.Position = UDim2.new(0.1, 0, 0.2, 0)
+KillCoelhoButton.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+KillCoelhoButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+KillCoelhoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KillCoelhoButton.Font = Enum.Font.SourceSans
+KillCoelhoButton.MouseButton1Click:Connect(function() killMob("Coelho") end) -- OBS: O nome "Coelho" pode variar.
+
+KillUrsoButton.Parent = MainContentFrame
+KillUrsoButton.Name = "KillUrsoButton"
+KillUrsoButton.Text = "Matar Urso"
+KillUrsoButton.Position = UDim2.new(0.1, 0, 0.3, 0)
+KillUrsoButton.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+KillUrsoButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+KillUrsoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KillUrsoButton.Font = Enum.Font.SourceSans
+KillUrsoButton.MouseButton1Click:Connect(function() killMob("Urso") end) -- OBS: O nome "Urso" pode variar.
+
+KillVikingsButton.Parent = MainContentFrame
+KillVikingsButton.Name = "KillVikingsButton"
+KillVikingsButton.Text = "Matar Vikings"
+KillVikingsButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+KillVikingsButton.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+KillVikingsButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+KillVikingsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KillVikingsButton.Font = Enum.Font.SourceSans
+KillVikingsButton.MouseButton1Click:Connect(function() killMob("Viking") end) -- OBS: O nome "Viking" pode variar.
+
+
+-- Seção de Teleporte
+TeleportTitle.Parent = MainContentFrame
+TeleportTitle.Name = "TeleportTitle"
+TeleportTitle.Text = "-- Teleportes --"
+TeleportTitle.Position = UDim2.new(0.1, 0, 0.55, 0)
+TeleportTitle.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+TeleportTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+TeleportTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+TeleportTitle.Font = Enum.Font.SourceSansItalic
+
+
+-- Função de teleporte para o clique do mouse
+local mouse = game.Players.LocalPlayer:GetMouse()
+local teleportOnClickEnabled = false
+
+TeleportOnClickButton.Parent = MainContentFrame
+TeleportOnClickButton.Name = "TeleportOnClickButton"
+TeleportOnClickButton.Text = "Teleporte com Clique (Desativado)"
+TeleportOnClickButton.Position = UDim2.new(0.1, 0, 0.65, 0)
+TeleportOnClickButton.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+TeleportOnClickButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+TeleportOnClickButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportOnClickButton.Font = Enum.Font.SourceSans
+TeleportOnClickButton.MouseButton1Click:Connect(function()
+    teleportOnClickEnabled = not teleportOnClickEnabled
+    if teleportOnClickEnabled then
+        TeleportOnClickButton.Text = "Teleporte com Clique (Ativado)"
+        TeleportOnClickButton.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        TeleportOnClickButton.Text = "Teleporte com Clique (Desativado)"
+        TeleportOnClickButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+mouse.Button1Down:Connect(function()
+    if teleportOnClickEnabled then
+        local targetPosition = mouse.Hit.p
+        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(targetPosition)
+    end
+end)
+
+
+-- Exemplo de botão para localizações pré-definidas
+-- Você precisará encontrar as coordenadas exatas no mapa
+TeleportSafeZoneButton.Parent = MainContentFrame
+TeleportSafeZoneButton.Name = "TeleportSafeZoneButton"
+TeleportSafeZoneButton.Text = "Teleporte: Fogueira Central"
+TeleportSafeZoneButton.Position = UDim2.new(0.1, 0, 0.75, 0)
+TeleportSafeZoneButton.Size = UDim2.new(0.8, 0, 0, 30)
+-- Estilos
+TeleportSafeZoneButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+TeleportSafeZoneButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TeleportSafeZoneButton.Font = Enum.Font.SourceSans
+TeleportSafeZoneButton.MouseButton1Click:Connect(function()
+    -- ATENÇÃO: Substitua X, Y, Z pelas coordenadas desejadas
+    local safeZoneCoords = Vector3.new(X, Y, Z) 
+    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(safeZoneCoords)
+end)
