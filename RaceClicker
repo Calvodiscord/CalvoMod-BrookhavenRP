@@ -1,140 +1,212 @@
 --[[
-    CALVO MOD - RACE CLICKER V1
-    ATENÇÃO: Este script é um modelo conceitual e pode precisar de atualizações
-    para funcionar com as versões mais recentes do jogo e do executor.
-    A utilização de scripts pode violar os termos de serviço do Roblox. Use por sua conta e risco.
+    ================================================================
+    == CALVO MOD - RACE CLICKER V1 (VERSÃO COMPLETA E AUTOCONTIDA) ==
+    ================================================================
+    --  DESCRIÇÃO: Script completo com UI própria e funções estáveis
+    --  para o Race Clicker. Não depende de bibliotecas externas.
 ]]
 
--- Criação da Janela Principal
-local ScreenGui = Instance.new("ScreenGui")
+-- VARIÁVEIS DE CONTROLE
+local Toggles = {
+    AutoWin = false,
+    AutoRebirth = false,
+    AutoClick = false,
+    AutoHatch = false
+}
+
+--===========================--
+-- CRIAÇÃO DA INTERFACE (UI) --
+--===========================--
+
+-- Janela Principal
+local CalvoModGui = Instance.new("ScreenGui")
+CalvoModGui.Name = "CalvoModV1"
+CalvoModGui.Parent = game:GetService("CoreGui")
+CalvoModGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+CalvoModGui.ResetOnSpawn = false
+
 local MainFrame = Instance.new("Frame")
-local TitleLabel = Instance.new("TextLabel")
-local CloseButton = Instance.new("TextButton")
-local MinimizeButton = Instance.new("TextButton")
-local OptionsFrame = Instance.new("Frame")
-
--- Nomes e Configurações
-ScreenGui.Name = "CalvoModV1Gui"
-ScreenGui.Parent = game.CoreGui
-
 MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Parent = CalvoModGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+MainFrame.BorderColor3 = Color3.fromRGB(150, 0, 0)
+MainFrame.BorderSizePixel = 2
 MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
-MainFrame.Draggable = true
+MainFrame.Size = UDim2.new(0, 400, 0, 260)
 MainFrame.Active = true
+MainFrame.Draggable = true
 
-TitleLabel.Name = "TitleLabel"
-TitleLabel.Parent = MainFrame
-TitleLabel.Size = UDim2.new(1, 0, 0, 30)
-TitleLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-TitleLabel.BorderColor3 = Color3.fromRGB(255, 0, 0)
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.Text = "CALVO MOD - RACE CLICKER V1"
-TitleLabel.Font = Enum.Font.SourceSansBold
-TitleLabel.TextSize = 18
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Parent = MainFrame
+Header.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Header.Size = UDim2.new(1, 0, 0, 30)
+Header.BorderColor3 = Color3.fromRGB(150, 0, 0)
 
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Parent = Header
+Title.BackgroundColor3 = Color3.new(1, 1, 1)
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, 0, 1, 0)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "CALVO MOD - RACE CLICKER V1"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+
+local CloseButton = Instance.new("TextButton")
 CloseButton.Name = "CloseButton"
-CloseButton.Parent = MainFrame
-CloseButton.Size = UDim2.new(0, 25, 0, 25)
-CloseButton.Position = UDim2.new(1, -30, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.Parent = Header
+CloseButton.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.Size = UDim2.new(0, 30, 1, 0)
+CloseButton.Font = Enum.Font.SourceSansBold
 CloseButton.Text = "X"
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.TextSize = 14
-
-MinimizeButton.Name = "MinimizeButton"
-MinimizeButton.Parent = MainFrame
-MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
-MinimizeButton.Position = UDim2.new(1, -60, 0, 5)
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
-MinimizeButton.Text = "_"
-MinimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
-MinimizeButton.Font = Enum.Font.SourceSansBold
-MinimizeButton.TextSize = 14
-
-OptionsFrame.Name = "OptionsFrame"
-OptionsFrame.Parent = MainFrame
-OptionsFrame.Size = UDim2.new(1, -10, 1, -40)
-OptionsFrame.Position = UDim2.new(0, 5, 0, 35)
-OptionsFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-OptionsFrame.BorderSizePixel = 0
-
--- Funções dos Botões
+CloseButton.TextSize = 20
 CloseButton.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
+    CalvoModGui:Destroy()
 end)
 
-local isMinimized = false
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Parent = Header
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MinimizeButton.Position = UDim2.new(1, -60, 0, 0)
+MinimizeButton.Size = UDim2.new(0, 30, 1, 0)
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.Text = "_"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 20
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Parent = MainFrame
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Position = UDim2.new(0, 0, 0, 30)
+ContentFrame.Size = UDim2.new(1, 0, 1, -30)
+
 MinimizeButton.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    OptionsFrame.Visible = not isMinimized
-    if isMinimized then
-        MainFrame.Size = UDim2.new(0, 400, 0, 30)
-    else
-        MainFrame.Size = UDim2.new(0, 400, 0, 300)
-    end
+    ContentFrame.Visible = not ContentFrame.Visible
 end)
 
--- Opções do Mod Menu
-local function createOption(name, optionType)
-    local optionContainer = Instance.new("Frame")
-    optionContainer.Parent = OptionsFrame
-    optionContainer.Size = UDim2.new(1, -10, 0, 30)
-    optionContainer.Position = UDim2.new(0, 5, 0, #OptionsFrame:GetChildren() * 35)
-    optionContainer.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    optionContainer.BorderSizePixel = 0
-
-    local optionLabel = Instance.new("TextLabel")
-    optionLabel.Parent = optionContainer
-    optionLabel.Size = UDim2.new(0.5, 0, 1, 0)
-    optionLabel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    optionLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    optionLabel.Text = name
-    optionLabel.Font = Enum.Font.SourceSans
-    optionLabel.TextSize = 16
-    optionLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    if optionType == "Toggle" then
-        local toggleButton = Instance.new("TextButton")
-        toggleButton.Parent = optionContainer
-        toggleButton.Size = UDim2.new(0.4, 0, 1, -4)
-        toggleButton.Position = UDim2.new(0.6, 0, 0, 2)
-        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        toggleButton.Text = "OFF"
-        toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        
-        local isEnabled = false
-        toggleButton.MouseButton1Click:Connect(function()
-            isEnabled = not isEnabled
-            if isEnabled then
-                toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                toggleButton.Text = "ON"
-            else
-                toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                toggleButton.Text = "OFF"
-            end
-            
-            -- Lógica da função
-            if name == "Auto Clicker" then
-                while isEnabled do
-                    game:GetService("VirtualUser"):Click(Enum.UserInputType.MouseButton1)
-                    wait(0.1)
-                end
-            end
-            
-            if name == "Auto Win Race" then
-                -- A lógica para vencer a corrida seria implementada aqui
-            end
-        end)
-    end
+-- Função para criar botões de toggle
+local function CreateToggle(name, y_offset)
+    local Button = Instance.new("TextButton")
+    Button.Name = name
+    Button.Parent = ContentFrame
+    Button.BackgroundColor3 = Color3.fromRGB(255, 0, 50)
+    Button.BorderColor3 = Color3.fromRGB(10, 10, 10)
+    Button.Position = UDim2.new(0.05, 0, 0, y_offset)
+    Button.Size = UDim2.new(0.4, 0, 0, 35)
+    Button.Font = Enum.Font.SourceSansSemibold
+    Button.Text = name .. " (OFF)"
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 16
+    
+    local id = name:gsub(" ", "") -- Remove espaços para usar como chave
+    Button.MouseButton1Click:Connect(function()
+        Toggles[id] = not Toggles[id]
+        if Toggles[id] then
+            Button.BackgroundColor3 = Color3.fromRGB(0, 180, 20)
+            Button.Text = name .. " (ON)"
+        else
+            Button.BackgroundColor3 = Color3.fromRGB(255, 0, 50)
+            Button.Text = name .. " (OFF)"
+        end
+    end)
+    return Button
 end
 
--- Adicionar as opções ao menu
-createOption("Auto Clicker", "Toggle")
-createOption("Auto Win Race", "Toggle")
-createOption("Auto Rebirth", "Toggle")
-createOption("Auto Hatch Pets", "Toggle")
+-- Criar botões
+CreateToggle("Auto Win", 20)
+CreateToggle("Auto Rebirth", 70)
+CreateToggle("Auto Clicker", 120)
+CreateToggle("Auto Hatch", 170)
+
+-- Função para criar slider de velocidade
+local function CreateSpeedSlider()
+    local SliderLabel = Instance.new("TextLabel")
+    SliderLabel.Parent = ContentFrame
+    SliderLabel.Position = UDim2.new(0.55, 0, 0, 20)
+    SliderLabel.Size = UDim2.new(0.4, 0, 0, 20)
+    SliderLabel.BackgroundTransparency = 1
+    SliderLabel.Font = Enum.Font.SourceSansSemibold
+    SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SliderLabel.TextSize = 16
+    SliderLabel.Text = "WalkSpeed: 16"
+    
+    local SliderFrame = Instance.new("Frame")
+    SliderFrame.Parent = ContentFrame
+    SliderFrame.Position = UDim2.new(0.55, 0, 0, 45)
+    SliderFrame.Size = UDim2.new(0.4, 0, 0, 10)
+    SliderFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    SliderFrame.BorderColor3 = Color3.fromRGB(10, 10, 10)
+
+    local SliderButton = Instance.new("TextButton")
+    SliderButton.Parent = SliderFrame
+    SliderButton.Size = UDim2.new(0, 15, 0, 15)
+    SliderButton.Position = UDim2.new(0, -7.5, 0.5, -7.5)
+    SliderButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    SliderButton.Text = ""
+    SliderButton.Draggable = true
+    SliderButton.ZIndex = 2
+
+    SliderButton.DragEnded:Connect(function()
+        local minSpeed, maxSpeed = 16, 500
+        local percentage = math.clamp(SliderButton.Position.X.Scale, 0, 1)
+        local newSpeed = math.floor(minSpeed + (maxSpeed - minSpeed) * percentage)
+        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = newSpeed
+        SliderLabel.Text = "WalkSpeed: " .. newSpeed
+    end)
+end
+
+CreateSpeedSlider()
+
+--======================--
+-- LÓGICA DAS FUNÇÕES --
+--======================--
+
+-- Auto Win Loop
+spawn(function()
+    while wait(1) do
+        if Toggles.AutoWin then
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.winRace:InvokeServer("Default")
+            end)
+        end
+    end
+end)
+
+-- Auto Rebirth Loop
+spawn(function()
+    while wait(0.5) do
+        if Toggles.AutoRebirth then
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.rebirth:InvokeServer("Default")
+            end)
+        end
+    end
+end)
+
+-- Auto Clicker Loop
+spawn(function()
+    while wait() do
+        if Toggles.AutoClicker then
+            pcall(function()
+                game:GetService("VirtualUser"):Click(Enum.UserInputType.MouseButton1)
+            end)
+        end
+    end
+end)
+
+-- Auto Hatch Loop
+spawn(function()
+    while wait(0.5) do
+        if Toggles.AutoHatch then
+            pcall(function()
+                game:GetService("ReplicatedStorage").Remotes.hatch:InvokeServer("Default", 1)
+            end)
+        end
+    end
+end)
