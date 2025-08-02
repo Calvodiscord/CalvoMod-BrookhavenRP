@@ -1,0 +1,140 @@
+--[[
+    CALVO MOD - RACE CLICKER V1
+    ATENÇÃO: Este script é um modelo conceitual e pode precisar de atualizações
+    para funcionar com as versões mais recentes do jogo e do executor.
+    A utilização de scripts pode violar os termos de serviço do Roblox. Use por sua conta e risco.
+]]
+
+-- Criação da Janela Principal
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local TitleLabel = Instance.new("TextLabel")
+local CloseButton = Instance.new("TextButton")
+local MinimizeButton = Instance.new("TextButton")
+local OptionsFrame = Instance.new("Frame")
+
+-- Nomes e Configurações
+ScreenGui.Name = "CalvoModV1Gui"
+ScreenGui.Parent = game.CoreGui
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 400, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+MainFrame.Draggable = true
+MainFrame.Active = true
+
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Parent = MainFrame
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TitleLabel.BorderColor3 = Color3.fromRGB(255, 0, 0)
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Text = "CALVO MOD - RACE CLICKER V1"
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 18
+
+CloseButton.Name = "CloseButton"
+CloseButton.Parent = MainFrame
+CloseButton.Size = UDim2.new(0, 25, 0, 25)
+CloseButton.Position = UDim2.new(1, -30, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 14
+
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Parent = MainFrame
+MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
+MinimizeButton.Position = UDim2.new(1, -60, 0, 5)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+MinimizeButton.Text = "_"
+MinimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.TextSize = 14
+
+OptionsFrame.Name = "OptionsFrame"
+OptionsFrame.Parent = MainFrame
+OptionsFrame.Size = UDim2.new(1, -10, 1, -40)
+OptionsFrame.Position = UDim2.new(0, 5, 0, 35)
+OptionsFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+OptionsFrame.BorderSizePixel = 0
+
+-- Funções dos Botões
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+local isMinimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    OptionsFrame.Visible = not isMinimized
+    if isMinimized then
+        MainFrame.Size = UDim2.new(0, 400, 0, 30)
+    else
+        MainFrame.Size = UDim2.new(0, 400, 0, 300)
+    end
+end)
+
+-- Opções do Mod Menu
+local function createOption(name, optionType)
+    local optionContainer = Instance.new("Frame")
+    optionContainer.Parent = OptionsFrame
+    optionContainer.Size = UDim2.new(1, -10, 0, 30)
+    optionContainer.Position = UDim2.new(0, 5, 0, #OptionsFrame:GetChildren() * 35)
+    optionContainer.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    optionContainer.BorderSizePixel = 0
+
+    local optionLabel = Instance.new("TextLabel")
+    optionLabel.Parent = optionContainer
+    optionLabel.Size = UDim2.new(0.5, 0, 1, 0)
+    optionLabel.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    optionLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    optionLabel.Text = name
+    optionLabel.Font = Enum.Font.SourceSans
+    optionLabel.TextSize = 16
+    optionLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    if optionType == "Toggle" then
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Parent = optionContainer
+        toggleButton.Size = UDim2.new(0.4, 0, 1, -4)
+        toggleButton.Position = UDim2.new(0.6, 0, 0, 2)
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        toggleButton.Text = "OFF"
+        toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        
+        local isEnabled = false
+        toggleButton.MouseButton1Click:Connect(function()
+            isEnabled = not isEnabled
+            if isEnabled then
+                toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                toggleButton.Text = "ON"
+            else
+                toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                toggleButton.Text = "OFF"
+            end
+            
+            -- Lógica da função
+            if name == "Auto Clicker" then
+                while isEnabled do
+                    game:GetService("VirtualUser"):Click(Enum.UserInputType.MouseButton1)
+                    wait(0.1)
+                end
+            end
+            
+            if name == "Auto Win Race" then
+                -- A lógica para vencer a corrida seria implementada aqui
+            end
+        end)
+    end
+end
+
+-- Adicionar as opções ao menu
+createOption("Auto Clicker", "Toggle")
+createOption("Auto Win Race", "Toggle")
+createOption("Auto Rebirth", "Toggle")
+createOption("Auto Hatch Pets", "Toggle")
