@@ -1,14 +1,13 @@
 --[[
-    Script: Brookhaven Fun Mod V2
-    Versão: 2.0
-    Autor: @user_calvoff
+    Script: Brookhaven Fun Mod V3
+    Versão: 3.0
+    Autor: @User_calvo
 
-    ATUALIZAÇÕES V2.0:
-    - INTERFACE AMIGÁVEL: Adicionados botões para fechar (X) e minimizar (_).
-    - SELEÇÃO DE IDIOMA: Tela inicial para escolher entre Português e Inglês.
-    - BUGS CORRIGIDOS: A lógica de Voar e Andar sobre a Água foi refeita para ser mais estável.
-    - NOVA FUNÇÃO: Adicionado Pulo Infinito.
-    - NENHUMA FUNÇÃO REMOVIDA: Todas as outras opções (Speed, Noclip, etc.) foram mantidas.
+    ATUALIZAÇÕES V3.0 (CORREÇÃO CRÍTICA):
+    - CORREÇÃO DE CARREGAMENTO: Eliminado o erro que impedia a UI principal de aparecer após a seleção de idioma.
+    - UI ESTÁVEL: A lógica de criação de botões foi refeita para garantir que todas as opções sempre apareçam corretamente.
+    - FLUXO CORRIGIDO: A tela de idioma agora é destruída e substituída pelo menu principal, como solicitado.
+    - NENHUMA FUNÇÃO REMOVIDA: Todas as funcionalidades da versão anterior foram mantidas.
 ]]
 
 --==================================================================================--
@@ -26,12 +25,12 @@ local mouse = localPlayer:GetMouse()
 --==================================================================================--
 local currentLanguage = "pt"
 local modStates = {
-    isFlying = false,
-    isNoclipping = false,
-    isSpeedEnabled = false,
-    isClickTeleportEnabled = false,
-    isWalkOnWaterEnabled = false,
-    isInfiniteJumpEnabled = false
+    fly = false,
+    noclip = false,
+    speed = false,
+    click_tp = false,
+    walk_on_water = false,
+    infinite_jump = false
 }
 local modSettings = {
     originalWalkSpeed = 16,
@@ -68,167 +67,119 @@ local function BuildUI()
     end
 
     local gui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
-    gui.Name = "BrookhavenFunModGui"
-    gui.ResetOnSpawn = false
+    gui.Name = "BrookhavenFunModGui"; gui.ResetOnSpawn = false
 
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Parent = gui
-    mainFrame.Size = UDim2.new(0, 220, 0, 350)
-    mainFrame.Position = UDim2.new(0, 10, 0.5, -175)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    mainFrame.Draggable = true
-    mainFrame.Active = true
-    mainFrame.ClipsDescendants = true
+    local mainFrame = Instance.new("Frame", gui)
+    mainFrame.Name = "MainFrame"; mainFrame.Size = UDim2.new(0, 220, 0, 350); mainFrame.Position = UDim2.new(0, 10, 0.5, -175)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45); mainFrame.Draggable = true; mainFrame.Active = true; mainFrame.ClipsDescendants = true
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
     Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(80, 80, 100)
 
     local topBar = Instance.new("Frame", mainFrame)
-    topBar.Size = UDim2.new(1, 0, 0, 35)
-    topBar.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    topBar.Size = UDim2.new(1, 0, 0, 35); topBar.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
     
     local title = Instance.new("TextLabel", topBar)
-    title.Size = UDim2.new(1, -70, 1, 0)
-    title.Position = UDim2.new(0, 10, 0, 0)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 16
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, -70, 1, 0); title.Position = UDim2.new(0, 10, 0, 0); title.Font = Enum.Font.GothamBold
+    title.TextSize = 16; title.TextColor3 = Color3.fromRGB(255, 255, 255); title.TextXAlignment = Enum.TextXAlignment.Left; title.BackgroundTransparency = 1
     
     local closeButton = Instance.new("TextButton", topBar)
-    closeButton.Size = UDim2.new(0, 35, 1, 0)
-    closeButton.Position = UDim2.new(1, -35, 0, 0)
-    closeButton.Text = "X"
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.TextSize = 16
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.BackgroundTransparency = 1
+    closeButton.Size = UDim2.new(0, 35, 1, 0); closeButton.Position = UDim2.new(1, -35, 0, 0); closeButton.Text = "X"
+    closeButton.Font = Enum.Font.GothamBold; closeButton.TextSize = 16; closeButton.TextColor3 = Color3.fromRGB(255, 255, 255); closeButton.BackgroundTransparency = 1
     closeButton.MouseButton1Click:Connect(function() gui:Destroy() end)
     
     local minimizeButton = Instance.new("TextButton", topBar)
-    minimizeButton.Size = UDim2.new(0, 35, 1, 0)
-    minimizeButton.Position = UDim2.new(1, -70, 0, 0)
-    minimizeButton.Text = "_"
-    minimizeButton.Font = Enum.Font.GothamBold
-    minimizeButton.TextSize = 20
-    minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    minimizeButton.BackgroundTransparency = 1
+    minimizeButton.Size = UDim2.new(0, 35, 1, 0); minimizeButton.Position = UDim2.new(1, -70, 0, 0); minimizeButton.Text = "_"
+    minimizeButton.Font = Enum.Font.GothamBold; minimizeButton.TextSize = 20; minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255); minimizeButton.BackgroundTransparency = 1
     minimizeButton.MouseButton1Click:Connect(function()
         uiData.isMinimized = not uiData.isMinimized
         local goalSize = uiData.isMinimized and UDim2.new(0, 220, 0, 35) or UDim2.new(0, 220, 0, 350)
-        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-        TweenService:Create(mainFrame, tweenInfo, {Size = goalSize}):Play()
+        TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Size = goalSize}):Play()
     end)
     
     local contentFrame = Instance.new("ScrollingFrame", mainFrame)
-    contentFrame.Size = UDim2.new(1, 0, 1, -35)
-    contentFrame.Position = UDim2.new(0, 0, 0, 35)
-    contentFrame.BackgroundTransparency = 1
-    contentFrame.BorderSizePixel = 0
-    contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    contentFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255)
-    contentFrame.ScrollBarThickness = 5
+    contentFrame.Size = UDim2.new(1, 0, 1, -35); contentFrame.Position = UDim2.new(0, 0, 0, 35)
+    contentFrame.BackgroundTransparency = 1; contentFrame.BorderSizePixel = 0; contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    contentFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255); contentFrame.ScrollBarThickness = 5
     
     local listLayout = Instance.new("UIListLayout", contentFrame)
-    listLayout.Padding = UDim.new(0, 5)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Padding = UDim.new(0, 5); listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     Instance.new("UIPadding", contentFrame).Padding = UDim.new(0, 10)
-
-    local function updateTexts()
-        local lang = LANGUAGES[currentLanguage]
-        title.Text = lang.title
-        for _, obj in ipairs(contentFrame:GetChildren()) do
-            if obj:IsA("TextButton") and lang[obj.Name] then
-                local status = ""
-                if modStates[obj.Name] ~= nil then
-                    status = modStates[obj.Name] and " ["..lang.status_on.."]" or " ["..lang.status_off.."]"
-                end
-                obj.Text = lang[obj.Name] .. status
-            end
-        end
-    end
 
     local function createToggleButton(key)
         local button = Instance.new("TextButton")
-        button.Name = key
-        button.Parent = contentFrame
-        button.Size = UDim2.new(1, 0, 0, 35)
-        button.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
-        button.Font = Enum.Font.GothamSemibold
-        button.TextSize = 14
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.Name = key; button.Parent = contentFrame; button.Size = UDim2.new(1, 0, 0, 35)
+        button.BackgroundColor3 = Color3.fromRGB(55, 55, 70); button.Font = Enum.Font.GothamSemibold
+        button.TextSize = 14; button.TextColor3 = Color3.fromRGB(255, 255, 255)
         Instance.new("UICorner", button)
+        
+        local function updateText()
+            local lang = LANGUAGES[currentLanguage]
+            local status = modStates[key] and " ["..lang.status_on.."]" or " ["..lang.status_off.."]"
+            button.Text = lang[key] .. status
+            button.BackgroundColor3 = modStates[key] and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(55, 55, 70)
+        end
         
         button.MouseButton1Click:Connect(function()
             modStates[key] = not modStates[key]
-            updateTexts()
-            button.BackgroundColor3 = modStates[key] and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(55, 55, 70)
+            updateText()
         end)
+        updateText() -- Chamar uma vez para definir o texto inicial
     end
     
+    local function createActionButton(key, callback)
+        local button = Instance.new("TextButton", contentFrame)
+        button.Name = key; button.Size = UDim2.new(1, 0, 0, 35); button.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+        button.Font = Enum.Font.GothamSemibold; button.TextSize = 14; button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.Text = LANGUAGES[currentLanguage][key]
+        Instance.new("UICorner", button)
+        button.MouseButton1Click:Connect(callback)
+    end
+    
+    -- Atualizar o título principal
+    title.Text = LANGUAGES[currentLanguage].title
+
+    -- Criar todos os botões
     createToggleButton("fly")
     createToggleButton("speed")
     createToggleButton("noclip")
     createToggleButton("infinite_jump")
     createToggleButton("click_tp")
     createToggleButton("walk_on_water")
-    
-    local btoolsButton = Instance.new("TextButton", contentFrame)
-    btoolsButton.Name = "get_btools"
-    btoolsButton.Size = UDim2.new(1, 0, 0, 35)
-    btoolsButton.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
-    btoolsButton.Font = Enum.Font.GothamSemibold
-    btoolsButton.TextSize = 14
-    btoolsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Instance.new("UICorner", btoolsButton)
-    btoolsButton.MouseButton1Click:Connect(function()
+    createActionButton("get_btools", function()
         local char=localPlayer.Character; if char then pcall(function() char:FindFirstChildOfClass("Humanoid"):UnequipTools() end); Instance.new("HopperBin", localPlayer.Backpack).BinType=Enum.BinType.Build; Instance.new("HopperBin", localPlayer.Backpack).BinType=Enum.BinType.Clone; Instance.new("HopperBin", localPlayer.Backpack).BinType=Enum.BinType.Hammer end
     end)
-    
-    updateTexts()
 end
 
 local function CreateLanguageSelector()
-    if localPlayer.PlayerGui:FindFirstChild("LanguageSelectorGui") then return end
+    if localPlayer.PlayerGui:FindFirstChild("LanguageSelectorGui") then localPlayer.PlayerGui.LanguageSelectorGui:Destroy() end
     local gui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
-    gui.Name = "LanguageSelectorGui"
-    gui.ResetOnSpawn = false
+    gui.Name = "LanguageSelectorGui"; gui.ResetOnSpawn = false
     
     local frame = Instance.new("Frame", gui)
-    frame.Size = UDim2.new(0, 300, 0, 150)
-    frame.Position = UDim2.new(0.5, -150, 0.5, -75)
-    frame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    frame.Size = UDim2.new(0, 300, 0, 150); frame.Position = UDim2.new(0.5, -150, 0.5, -75); frame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
     
     local title = Instance.new("TextLabel", frame)
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.Text = LANGUAGES.pt.lang_select_title -- Título sempre o mesmo
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 24
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, 0, 0, 50); title.Text = LANGUAGES.pt.lang_select_title; title.Font = Enum.Font.GothamBold
+    title.TextSize = 24; title.TextColor3 = Color3.fromRGB(255, 255, 255); title.BackgroundTransparency = 1
     
-    local function createLangButton(langKey)
+    local function createLangButton(langKey, text)
         local button = Instance.new("TextButton", frame)
         button.Size = UDim2.new(0.4, 0, 0, 50)
         button.Position = UDim2.new(langKey == "pt" and 0.05 or 0.55, 0, 0.6, 0)
-        button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-        button.Font = Enum.Font.GothamSemibold
-        button.TextSize = 16
-        button.TextColor3 = Color3.fromRGB(255, 255, 255)
-        button.Text = LANGUAGES[langKey].lang_select_title == "MOD MENU" and LANGUAGES.pt[langKey == "pt" and "lang_pt" or "lang_en"] or LANGUAGES[langKey][langKey == "pt" and "lang_pt" or "lang_en"]
+        button.BackgroundColor3 = Color3.fromRGB(0, 170, 255); button.Font = Enum.Font.GothamSemibold
+        button.TextSize = 16; button.TextColor3 = Color3.fromRGB(255, 255, 255); button.Text = text
         Instance.new("UICorner", button)
         
         button.MouseButton1Click:Connect(function()
             currentLanguage = langKey
-            BuildUI()
-            gui:Destroy()
+            gui:Destroy() -- Destruir o seletor de idioma
+            BuildUI()    -- Construir o menu principal
         end)
     end
     
-    createLangButton("pt")
-    createLangButton("en")
+    createLangButton("pt", LANGUAGES.pt.lang_pt)
+    createLangButton("en", LANGUAGES.en.lang_en)
 end
 
 --==================================================================================--
@@ -241,15 +192,16 @@ local function onCharacterAdded(character)
     
     RunService.RenderStepped:Connect(function()
         if not character or not character.Parent or not humanoid or humanoid.Health <= 0 then return end
-        local rootPart = humanoid.RootPart
-        if not rootPart then return end
+        local rootPart = humanoid.RootPart; if not rootPart then return end
 
-        humanoid.WalkSpeed = modStates.isSpeedEnabled and modSettings.speedValue or modSettings.originalWalkSpeed
-        if modStates.isInfiniteJumpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.Space) then humanoid.Jump = true end
+        humanoid.WalkSpeed = modStates.speed and modSettings.speedValue or modSettings.originalWalkSpeed
+        if modStates.infinite_jump then humanoid.JumpPower = 100 else humanoid.JumpPower = modSettings.originalJumpPower end
+        if modStates.infinite_jump and UserInputService:IsKeyDown(Enum.KeyCode.Space) then humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
         
-        for _, part in ipairs(character:GetDescendants()) do if part:IsA("BasePart") then pcall(function() part.CanCollide = not modStates.isNoclipping end) end end
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, not modStates.noclip)
+        for _, part in ipairs(character:GetDescendants()) do if part:IsA("BasePart") then pcall(function() part.CanCollide = not modStates.noclip end) end end
 
-        if modStates.isFlying then
+        if modStates.fly then
             humanoid:ChangeState(Enum.HumanoidStateType.Flying)
             local flyDir=Vector3.new(); local camCF=Workspace.CurrentCamera.CFrame
             if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyDir+=camCF.LookVector end; if UserInputService:IsKeyDown(Enum.KeyCode.S) then flyDir-=camCF.LookVector end
@@ -260,9 +212,9 @@ local function onCharacterAdded(character)
             humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying, false)
         end
         
-        if modStates.isWalkOnWaterEnabled and rootPart.Position.Y < modSettings.waterLevelY + 1 then
+        if modStates.walk_on_water and rootPart.Position.Y < modSettings.waterLevelY + 2 then
             local force = rootPart:GetMass() * workspace.Gravity
-            rootPart.Velocity = Vector3.new(rootPart.Velocity.X, force, rootPart.Velocity.Z)
+            rootPart.Velocity = Vector3.new(rootPart.Velocity.X, force + 5, rootPart.Velocity.Z) -- Força extra para garantir flutuação
         end
     end)
 end
@@ -277,7 +229,7 @@ local function Initialize()
     localPlayer.CharacterAdded:Connect(onCharacterAdded)
 
     mouse.Button1Down:Connect(function()
-        if modStates.isClickTeleportEnabled and mouse.Target and mouse.Target.Name ~= "Terrain" then
+        if modStates.click_tp and mouse.Target then
             local char=localPlayer.Character; if char and char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.CFrame=mouse.Hit*CFrame.new(0,3,0) end
         end
     end)
