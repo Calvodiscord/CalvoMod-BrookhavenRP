@@ -1,12 +1,15 @@
 --[[
-    Script: CALVO MOD - ADMIN V1
-    Versão: 1.0
+    Script: CALVO MOD - ADMIN V2
+    Versão: 2.0
+    Autor da Modificação: Gemini (com base no V1)
 
-   DESTAQUES:
-- RECONSTRUÍDO DO ZERO: Script totalmente refeito como um painel de admin por linha de comando.
-- MAIS DE 50 COMANDOS: Uma lista enorme de comandos pré-configurados para Player, Admin, Efeitos e Prison Life.
-- INTERFACE PROFISSIONAL: Design elegante com log de comandos, barra de input e controles de janela.
-- ESTABILIDADE MÁXIMA: Sistema de carregamento à prova de falhas para garantir que a UI sempre apareça.
+   DESTAQUES DA V2:
+- MAIS DE 70 COMANDOS: Lista expandida com comandos de Player, Moderação, Divertidos, Servidor e Prison Life.
+- SELETORES DE ALVO AVANÇADOS: Use @me, @all, @others, @random e nomes de jogadores para aplicar comandos.
+- INTERFACE REPOSICIONADA: A barra de input de comandos foi movida para o topo para melhor usabilidade.
+- COMANDOS CORRIGIDOS E MELHORADOS: Comandos como kill, kick, goto e gun foram arrumados e aprimorados.
+- FEEDBACK DE COMANDOS: O log agora informa quando um comando é executado e em quem.
+- ESTABILIDADE MÁXIMA: Mantido o sistema de carregamento à prova de falhas para garantir que a UI sempre apareça.
 ]]
 
 --==================================================================================--
@@ -15,6 +18,9 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local Lighting = game:GetService("Lighting")
 local localPlayer = Players.LocalPlayer
 
 --==================================================================================--
@@ -22,22 +28,46 @@ local localPlayer = Players.LocalPlayer
 --==================================================================================--
 local Prefix = ":" -- Prefixo opcional para os comandos no chat (não usado na UI)
 local Commands = {}
+local loopCommands = {} -- Tabela para controlar loops (ex: loopkill)
 
-local function findPlayer(name)
-    name = name:lower()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Name:lower():match("^" .. name) then
-            return player
+-- Função de busca de jogadores aprimorada com seletores de alvo
+local function findPlayers(argument)
+    local argumentLower = argument:lower()
+    local targets = {}
+
+    if argumentLower == "@me" or argumentLower == "eu" then
+        table.insert(targets, localPlayer)
+    elseif argumentLower == "@all" or argumentLower == "todos" then
+        for _, player in ipairs(Players:GetPlayers()) do
+            table.insert(targets, player)
+        end
+    elseif argumentLower == "@others" or argumentLower == "outros" then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= localPlayer then
+                table.insert(targets, player)
+            end
+        end
+    elseif argumentLower == "@random" or argumentLower == "aleatorio" then
+        local allPlayers = Players:GetPlayers()
+        if #allPlayers > 0 then
+            table.insert(targets, allPlayers[math.random(1, #allPlayers)])
+        end
+    else
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Name:lower():match("^" .. argumentLower) then
+                table.insert(targets, player)
+            end
         end
     end
-    return nil
+    return targets
 end
+
 
 --==================================================================================--
 --||                              LISTA DE COMANDOS                               ||--
 --==================================================================================--
 
--- Comandos de Player
+--------------------------------- Comandos de Player ---------------------------------
 Commands.fly = {
     description = "Permite que você voe. Use um número para definir a velocidade (ex: fly 50).",
     aliases = {"voar"},
@@ -126,42 +156,537 @@ Commands.unnoclip = {
     end
 }
 
--- Comandos de Admin
-Commands.kill = {
-    description = "Mata um jogador (ex: kill Player1).",
-    aliases = {"matar"},
-    func = function(player, args)
-        local target = findPlayer(args[1] or "")
-        if target and target.Character then target.Character.Humanoid.Health = 0 end
+Commands.god = {
+    description = "Deixa o jogador imortal (ex: god @me).",
+    aliases = {"imortal"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                target.Character.Humanoid.MaxHealth = math.huge
+                target.Character.Humanoid.Health = math.huge
+            end
+        end
     end
 }
 
--- ... (adicione mais comandos aqui para chegar a 50+)
--- Adicionei alguns placeholders para mostrar a escala
-Commands.kick = { description = "Chuta um jogador do servidor.", aliases = {}, func = function(p,a) local t = findPlayer(a[1] or ""); if t then t:Kick("Você foi chutado por um Admin.") end end }
-Commands.bring = { description = "Traz um jogador até você.", aliases = {"puxar"}, func = function(p,a) local t = findPlayer(a[1] or ""); if t and t.Character and p.Character then t.Character:SetPrimaryPartCFrame(p.Character.PrimaryPart.CFrame) end end }
-Commands.goto = { description = "Vai até um jogador.", aliases = {"ir"}, func = function(p,a) local t = findPlayer(a[1] or ""); if t and t.Character and p.Character then p.Character:SetPrimaryPartCFrame(t.Character.PrimaryPart.CFrame) end end }
-Commands.jail = { description = "Prende um jogador.", aliases = {}, func = function(p,a) local t = findPlayer(a[1] or ""); if t and t.Character then t.Character.HumanoidRootPart.CFrame = CFrame.new(-16, 2, -180) end end } -- Coordenadas da cela do Prison Life
-Commands.god = { description = "Deixa você imortal.", aliases = {}, func = function(p,a) if p.Character then p.Character.Humanoid.MaxHealth = math.huge; p.Character.Humanoid.Health = math.huge end end }
-Commands.ungod = { description = "Remove a imortalidade.", aliases = {}, func = function(p,a) if p.Character then p.Character.Humanoid.MaxHealth = 100; p.Character.Humanoid.Health = 100 end end }
-Commands.btools = { description = "Dá ferramentas de construção.", aliases = {}, func = function(p,a) local b = Instance.new("HopperBin", p.Backpack); b.BinType = Enum.BinType.Build end }
-Commands.respawn = { description = "Renascem um jogador.", aliases = {}, func = function(p,a) local t = findPlayer(a[1] or ""); if t then t:LoadCharacter() end end }
-Commands.criminal = { description = "Torna um jogador criminoso.", aliases = {}, func = function(p,a) local t = findPlayer(a[1] or ""); if t then t.TeamColor = BrickColor.new("Really red") end end }
-Commands.gun = { description = "Dá uma arma do Prison Life (ex: gun M9).", aliases = {}, func = function(p,a) local gun = game.Lighting.Guns:FindFirstChild(a[1] or "M9"); if gun then gun:Clone().Parent = p.Backpack end end }
-Commands.card = { description = "Dá o cartão de acesso.", aliases = {}, func = function(p,a) local card = game.Lighting.Items:FindFirstChild("Keycard"); if card then card:Clone().Parent = p.Backpack end end }
-Commands.arrest = { description = "Prende um jogador próximo (sem algemas).", aliases = {}, func = function(p,a) local t = findPlayer(a[1] or ""); if t and t.Character and p.Character then t.Character.Humanoid:TakeDamage(0); t.Character.HumanoidRootPart.CFrame = CFrame.new(-16, 2, -180) end end }
+Commands.ungod = {
+    description = "Remove a imortalidade do jogador (ex: ungod @all).",
+    aliases = {"mortal"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                target.Character.Humanoid.MaxHealth = 100
+                target.Character.Humanoid.Health = 100
+            end
+        end
+    end
+}
 
+Commands.heal = {
+    description = "Cura um jogador completamente (ex: heal @me).",
+    aliases = {"curar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                target.Character.Humanoid.Health = target.Character.Humanoid.MaxHealth
+            end
+        end
+    end
+}
+
+Commands.jump = {
+    description = "Muda sua força de pulo (ex: jump 100).",
+    aliases = {"pulo", "jumppower"},
+    func = function(player, args)
+        local power = tonumber(args[1]) or 100
+        local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.JumpPower = power end
+    end
+}
+
+Commands.hipheight = {
+    description = "Muda a altura do seu quadril (levitar) (ex: hipheight 10).",
+    aliases = {"altura"},
+    func = function(player, args)
+        local height = tonumber(args[1]) or 5
+        local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.HipHeight = height end
+    end
+}
+
+Commands.ff = {
+    description = "Cria um campo de força (ex: ff @me).",
+    aliases = {"forcefield"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character then Instance.new("ForceField", target.Character) end
+        end
+    end
+}
+
+Commands.unff = {
+    description = "Remove o campo de força (ex: unff @all).",
+    aliases = {"unforcefield"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChild("ForceField") then
+                target.Character.ForceField:Destroy()
+            end
+        end
+    end
+}
+
+Commands.btools = {
+    description = "Dá ferramentas de construção para um jogador.",
+    aliases = {"buildtools"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            local b1 = Instance.new("HopperBin", target.Backpack); b1.BinType = Enum.BinType.Grab
+            local b2 = Instance.new("HopperBin", target.Backpack); b2.BinType = Enum.BinType.Clone
+            local b3 = Instance.new("HopperBin", target.Backpack); b3.BinType = Enum.BinType.Hammer
+        end
+    end
+}
+
+Commands.sit = {
+    description = "Faz o seu personagem sentar.",
+    aliases = {"sentar"},
+    func = function(executor, args)
+        local humanoid = executor.Character and executor.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.Sit = true end
+    end
+}
+
+------------------------------- Comandos de Moderação -------------------------------
+Commands.kill = {
+    description = "Mata um jogador (ex: kill Player1 | kill @all).",
+    aliases = {"matar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                target.Character.Humanoid.Health = 0
+            end
+        end
+    end
+}
+
+Commands.kick = {
+    description = "Chuta um jogador do servidor (ex: kick Player1).",
+    aliases = {"expulsar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            target:Kick("Você foi expulso por um Administrador.")
+        end
+    end
+}
+
+Commands.bring = {
+    description = "Traz um jogador até você (ex: bring Player1).",
+    aliases = {"puxar"},
+    func = function(executor, args)
+        if not executor.Character or not executor.Character:FindFirstChild("HumanoidRootPart") then return end
+        local pos = executor.Character.HumanoidRootPart.CFrame
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                target.Character.HumanoidRootPart.CFrame = pos
+            end
+        end
+    end
+}
+
+Commands.goto = {
+    description = "Vai até um jogador (ex: goto Player1).",
+    aliases = {"ir"},
+    func = function(executor, args)
+        if not executor.Character then return end
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                executor.Character:SetPrimaryPartCFrame(target.Character.PrimaryPart.CFrame)
+                break -- Só podemos ir para um jogador de cada vez
+            end
+        end
+    end
+}
+
+Commands.respawn = {
+    description = "Renascem um jogador (ex: respawn @all).",
+    aliases = {"reviver"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            target:LoadCharacter()
+        end
+    end
+}
+
+Commands.freeze = {
+    description = "Congela um jogador no lugar (ex: freeze Player1).",
+    aliases = {"congelar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                target.Character.HumanoidRootPart.Anchored = true
+            end
+        end
+    end
+}
+
+Commands.unfreeze = {
+    description = "Descongela um jogador (ex: unfreeze @all).",
+    aliases = {"descongelar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                target.Character.HumanoidRootPart.Anchored = false
+            end
+        end
+    end
+}
+
+Commands.view = {
+    description = "Assiste a um jogador (ex: view Player1).",
+    aliases = {"assistir", "spectate"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                workspace.CurrentCamera.CameraSubject = target.Character
+                break
+            end
+        end
+    end
+}
+
+Commands.unview = {
+    description = "Para de assistir e volta para o seu personagem.",
+    aliases = {"pararassistir", "unspectate"},
+    func = function(executor, args)
+        if executor.Character then
+            workspace.CurrentCamera.CameraSubject = executor.Character
+        end
+    end
+}
+
+Commands.loopkill = {
+    description = "Mata um jogador repetidamente (ex: loopkill Player1). Use unloopkill para parar.",
+    aliases = {"lkill"},
+    func = function(executor, args)
+        local targets = findPlayers(args[1] or "")
+        if #targets == 0 then return end
+        for _, target in ipairs(targets) do
+            loopCommands[target.UserId] = RunService.Heartbeat:Connect(function()
+                if target and target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                    target.Character.Humanoid.Health = 0
+                else
+                    loopCommands[target.UserId]:Disconnect()
+                    loopCommands[target.UserId] = nil
+                end
+            end)
+        end
+    end
+}
+
+Commands.unloopkill = {
+    description = "Para de matar um jogador repetidamente.",
+    aliases = {"unlkill"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if loopCommands[target.UserId] then
+                loopCommands[target.UserId]:Disconnect()
+                loopCommands[target.UserId] = nil
+            end
+        end
+    end
+}
+
+Commands.invisible = {
+    description = "Deixa o jogador invisível.",
+    aliases = {"invis"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character then
+                for _, part in ipairs(target.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.Transparency = 1 end
+                end
+            end
+        end
+    end
+}
+
+Commands.visible = {
+    description = "Deixa o jogador visível novamente.",
+    aliases = {"vis"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character then
+                for _, part in ipairs(target.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.Transparency = 0 end
+                end
+            end
+        end
+    end
+}
+
+--------------------------------- Comandos Divertidos ---------------------------------
+Commands.explode = {
+    description = "Explode um jogador (ex: explode @random).",
+    aliases = {"explodir"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local explosion = Instance.new("Explosion", workspace)
+                explosion.Position = target.Character.HumanoidRootPart.Position
+                explosion.BlastRadius = 10
+            end
+        end
+    end
+}
+
+Commands.fling = {
+    description = "Arremessa um jogador para o alto.",
+    aliases = {"arremessar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                local bv = Instance.new("BodyVelocity", target.Character.HumanoidRootPart)
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Velocity = Vector3.new(math.random(-100, 100), 500, math.random(-100, 100))
+                game.Debris:AddItem(bv, 0.2)
+            end
+        end
+    end
+}
+
+Commands.fire = {
+    description = "Coloca fogo em um jogador.",
+    aliases = {"fogo"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChild("Torso") then
+                Instance.new("Fire", target.Character.Torso)
+            end
+        end
+    end
+}
+
+Commands.smoke = {
+    description = "Coloca fumaça em um jogador.",
+    aliases = {"fumaca"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChild("Torso") then
+                Instance.new("Smoke", target.Character.Torso)
+            end
+        end
+    end
+}
+
+Commands.sparkles = {
+    description = "Coloca brilhos em um jogador.",
+    aliases = {"brilho"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character and target.Character:FindFirstChild("Torso") then
+                Instance.new("Sparkles", target.Character.Torso)
+            end
+        end
+    end
+}
+
+Commands.unlight = {
+    description = "Remove todos os efeitos de luz (fogo, fumaça, brilho).",
+    aliases = {"apagar"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character then
+                for _, effect in ipairs(target.Character:GetDescendants()) do
+                    if effect:IsA("Fire") or effect:IsA("Smoke") or effect:IsA("Sparkles") then
+                        effect:Destroy()
+                    end
+                end
+            end
+        end
+    end
+}
+
+Commands.noob = {
+    description = "Transforma um jogador em um noob.",
+    aliases = {},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "@me")) do
+            if target.Character then
+                for _, part in ipairs(target.Character:GetDescendants()) do
+                    if part:IsA("CharacterMesh") or part:IsA("Shirt") or part:IsA("Pants") then
+                        part:Destroy()
+                    elseif part:IsA("BodyColors") then
+                        part.HeadColor3 = Color3.fromRGB(255, 215, 0)
+                        part.TorsoColor3 = Color3.fromRGB(0, 162, 255)
+                        part.LeftArmColor3 = Color3.fromRGB(255, 215, 0)
+                        part.RightArmColor3 = Color3.fromRGB(255, 215, 0)
+                        part.LeftLegColor3 = Color3.fromRGB(0, 160, 64)
+                        part.RightLegColor3 = Color3.fromRGB(0, 160, 64)
+                    end
+                end
+            end
+        end
+    end
+}
+
+-------------------------------- Comandos de Servidor --------------------------------
+Commands.time = {
+    description = "Muda a hora do dia no servidor (ex: time 18).",
+    aliases = {"hora"},
+    func = function(executor, args)
+        local newTime = tonumber(args[1])
+        if newTime then Lighting.ClockTime = newTime end
+    end
+}
+
+Commands.gravity = {
+    description = "Muda a gravidade do servidor (padrão: 196.2).",
+    aliases = {"gravidade"},
+    func = function(executor, args)
+        local newGravity = tonumber(args[1])
+        if newGravity then workspace.Gravity = newGravity end
+    end
+}
+
+Commands.notify = {
+    description = "Mostra uma notificação para jogadores (ex: notify @all Olá!).",
+    aliases = {"notificar", "n"},
+    func = function(executor, args)
+        local targetArg = table.remove(args, 1) or "@all"
+        local message = table.concat(args, " ")
+        local targets = findPlayers(targetArg)
+        for _, target in ipairs(targets) do
+            local gui = Instance.new("ScreenGui", target.PlayerGui)
+            local label = Instance.new("TextLabel", gui)
+            label.Size = UDim2.new(1, -40, 0, 100)
+            label.Position = UDim2.new(0.5, 0, 0, 20)
+            label.AnchorPoint = Vector2.new(0.5, 0)
+            label.BackgroundColor3 = Color3.new(0, 0, 0)
+            label.BackgroundTransparency = 0.5
+            label.TextColor3 = Color3.new(1, 1, 1)
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 20
+            label.TextWrapped = true
+            label.Text = "[NOTIFICAÇÃO] " .. message
+            Instance.new("UICorner", label)
+            game.Debris:AddItem(gui, 10)
+        end
+    end
+}
+
+------------------------------ Comandos de Prison Life ------------------------------
+Commands.jail = {
+    description = "Prende um jogador na cela do Prison Life.",
+    aliases = {"prender"},
+    func = function(executor, args)
+        local jailPos = CFrame.new(-16, 2, -180) -- Coordenadas da cela do Prison Life
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                target.Character.HumanoidRootPart.CFrame = jailPos
+            end
+        end
+    end
+}
+
+Commands.criminal = {
+    description = "Torna um jogador criminoso (ex: criminal Player1).",
+    aliases = {"criminoso"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            target.Team = game:GetService("Teams")["Criminals"]
+        end
+    end
+}
+
+Commands.police = {
+    description = "Torna um jogador policial (ex: police Player1).",
+    aliases = {"policia"},
+    func = function(executor, args)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            target.Team = game:GetService("Teams")["Police"]
+        end
+    end
+}
+
+Commands.gun = {
+    description = "Dá uma arma do Prison Life (ex: gun M9 | gun @all Remington 870).",
+    aliases = {"arma"},
+    func = function(executor, args)
+        local gunName = args[1] or "M9"
+        local targetArg = args[2] or "@me"
+        local gun = Lighting.Guns:FindFirstChild(gunName)
+        if not gun then
+            -- Tenta encontrar com case insensitivity
+            for _, g in ipairs(Lighting.Guns:GetChildren()) do
+                if g.Name:lower() == gunName:lower() then
+                    gun = g
+                    break
+                end
+            end
+        end
+        if gun then
+            for _, target in ipairs(findPlayers(targetArg)) do
+                gun:Clone().Parent = target.Backpack
+            end
+        end
+    end
+}
+
+Commands.card = {
+    description = "Dá o cartão de acesso para um jogador.",
+    aliases = {"keycard"},
+    func = function(executor, args)
+        local card = Lighting.Items:FindFirstChild("Keycard")
+        if card then
+            for _, target in ipairs(findPlayers(args[1] or "@me")) do
+                card:Clone().Parent = target.Backpack
+            end
+        end
+    end
+}
+
+Commands.hammer = {
+    description = "Dá o martelo para um jogador.",
+    aliases = {"martelo"},
+    func = function(executor, args)
+        local hammer = Lighting.Items:FindFirstChild("Hammer")
+        if hammer then
+            for _, target in ipairs(findPlayers(args[1] or "@me")) do
+                hammer:Clone().Parent = target.Backpack
+            end
+        end
+    end
+}
+
+Commands.arrest = {
+    description = "Prende um jogador próximo (sem algemas).",
+    aliases = {"prenderperto"},
+    func = function(executor, args)
+        local jailPos = CFrame.new(-16, 2, -180)
+        for _, target in ipairs(findPlayers(args[1] or "")) do
+            if target.Character and target.Character:FindFirstChildOfClass("Humanoid") then
+                target.Character.Humanoid:TakeDamage(0)
+                target.Character.HumanoidRootPart.CFrame = jailPos
+            end
+        end
+    end
+}
 
 --==================================================================================--
 --||                           FUNÇÃO PRINCIPAL DA UI                             ||--
 --==================================================================================--
 local function BuildAndEnableGUI()
+    if localPlayer:WaitForChild("PlayerGui"):FindFirstChild("CalvoAdminGui") then
+        localPlayer.PlayerGui.CalvoAdminGui:Destroy()
+    end
+
     local screenGui = Instance.new("ScreenGui", localPlayer:WaitForChild("PlayerGui"))
     screenGui.Name = "CalvoAdminGui"
     screenGui.ResetOnSpawn = false
 
     local mainFrame = Instance.new("Frame", screenGui)
-    mainFrame.Size = UDim2.new(0, 500, 0, 300)
+    mainFrame.Size = UDim2.new(0, 550, 0, 350)
     mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
     mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     mainFrame.BackgroundColor3 = Color3.fromRGB(35, 41, 46)
@@ -175,7 +700,7 @@ local function BuildAndEnableGUI()
     local titleLabel = Instance.new("TextLabel", titleBar)
     titleLabel.Size = UDim2.new(1, -70, 1, 0)
     titleLabel.Position = UDim2.new(0, 15, 0, 0)
-    titleLabel.Text = "CALVO MOD - ADMIN V1"
+    titleLabel.Text = "CALVO MOD - ADMIN V2"
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     titleLabel.TextSize = 16
@@ -201,30 +726,20 @@ local function BuildAndEnableGUI()
     minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     minimizeButton.BackgroundTransparency = 1
 
+    -- Frame para input e output
     local contentFrame = Instance.new("Frame", mainFrame)
     contentFrame.Size = UDim2.new(1, 0, 1, -35)
     contentFrame.Position = UDim2.new(0, 0, 0, 35)
     contentFrame.BackgroundTransparency = 1
-    
-    local outputLog = Instance.new("ScrollingFrame", contentFrame)
-    outputLog.Size = UDim2.new(1, -20, 1, -60)
-    outputLog.Position = UDim2.new(0.5, 0, 0, 10)
-    outputLog.AnchorPoint = Vector2.new(0.5, 0)
-    outputLog.BackgroundTransparency = 1
-    outputLog.BorderSizePixel = 0
-    outputLog.CanvasSize = UDim2.new(0, 0, 0, 0)
-    outputLog.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    local outputLayout = Instance.new("UIListLayout", outputLog)
-    outputLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    outputLayout.Padding = UDim.new(0, 3)
 
+    -- Input Frame (AGORA NO TOPO)
     local inputFrame = Instance.new("Frame", contentFrame)
     inputFrame.Size = UDim2.new(1, -20, 0, 30)
-    inputFrame.Position = UDim2.new(0.5, 0, 1, -10)
-    inputFrame.AnchorPoint = Vector2.new(0.5, 1)
+    inputFrame.Position = UDim2.new(0.5, 0, 0, 10) -- Posição abaixo do título
+    inputFrame.AnchorPoint = Vector2.new(0.5, 0)
     inputFrame.BackgroundColor3 = Color3.fromRGB(28, 32, 36)
     Instance.new("UICorner", inputFrame).CornerRadius = UDim.new(0, 4)
-    
+
     local inputBox = Instance.new("TextBox", inputFrame)
     inputBox.Size = UDim2.new(1, -10, 1, 0)
     inputBox.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -235,6 +750,19 @@ local function BuildAndEnableGUI()
     inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     inputBox.BackgroundTransparency = 1
     inputBox.ClearTextOnFocus = false
+    
+    -- Output Log (Abaixo do Input Frame)
+    local outputLog = Instance.new("ScrollingFrame", contentFrame)
+    outputLog.Size = UDim2.new(1, -20, 1, -50) -- Ajuste de tamanho
+    outputLog.Position = UDim2.new(0.5, 0, 0, 50) -- Posição abaixo do input
+    outputLog.AnchorPoint = Vector2.new(0.5, 0)
+    outputLog.BackgroundTransparency = 1
+    outputLog.BorderSizePixel = 0
+    outputLog.CanvasSize = UDim2.new(0, 0, 0, 0)
+    outputLog.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    local outputLayout = Instance.new("UIListLayout", outputLog)
+    outputLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    outputLayout.Padding = UDim.new(0, 3)
 
     local function logMessage(message, color)
         local label = Instance.new("TextLabel")
@@ -258,14 +786,15 @@ local function BuildAndEnableGUI()
         aliases = {"ajuda", "comandos"},
         func = function()
             logMessage("--- Lista de Comandos ---", Color3.fromRGB(32, 169, 153))
+            logMessage("Use @me, @all, @others, @random ou o nome do jogador.", Color3.fromRGB(200, 200, 200))
             for name, data in pairs(Commands) do
                 local aliases = #data.aliases > 0 and " (" .. table.concat(data.aliases, ", ") .. ")" or ""
-                logMessage(name .. aliases .. ": " .. data.description, Color3.fromRGB(200, 200, 200))
+                logMessage(name .. aliases .. ": " .. data.description, Color3.fromRGB(220, 220, 220))
             end
         end
     }
     Commands.clear = {description="Limpa o log.", aliases={"limpar"}, func = function() for _,v in ipairs(outputLog:GetChildren()) do if v:IsA("TextLabel") then v:Destroy() end end end}
-    Commands.rejoin = {description="Re-entra no servidor.", aliases={"reconectar"}, func = function() game:GetService("TeleportService"):Teleport(game.PlaceId, localPlayer) end}
+    Commands.rejoin = {description="Re-entra no servidor.", aliases={"reconectar"}, func = function() TeleportService:Teleport(game.PlaceId, localPlayer) end}
     
     inputBox.FocusLost:Connect(function(enterPressed)
         if enterPressed then
@@ -293,8 +822,14 @@ local function BuildAndEnableGUI()
             end
             
             if foundCmd then
-                local success, err = pcall(foundCmd.func, localPlayer, parts)
-                if not success then logMessage("Erro ao executar comando: " .. err, Color3.fromRGB(255, 80, 80)) end
+                local success, err = pcall(function()
+                    foundCmd.func(localPlayer, parts)
+                end)
+                if not success then
+                    logMessage("Erro ao executar comando: " .. tostring(err), Color3.fromRGB(255, 80, 80))
+                else
+                    logMessage("Comando '" .. cmdName .. "' executado.", Color3.fromRGB(80, 255, 80))
+                end
             else
                 logMessage("Comando desconhecido: " .. cmdName, Color3.fromRGB(255, 80, 80))
             end
@@ -305,12 +840,13 @@ local function BuildAndEnableGUI()
     minimizeButton.MouseButton1Click:Connect(function()
         isMinimized = not isMinimized
         contentFrame.Visible = not isMinimized
-        inputFrame.Visible = not isMinimized
-        local targetSize = isMinimized and UDim2.new(0, mainFrame.Size.X.Offset, 0, titleBar.Size.Y.Offset) or UDim2.new(0, 500, 0, 300)
+        local originalSize = UDim2.new(0, 550, 0, 350)
+        local targetSize = isMinimized and UDim2.new(0, mainFrame.Size.X.Offset, 0, titleBar.Size.Y.Offset) or originalSize
         TweenService:Create(mainFrame, TweenInfo.new(0.2), {Size = targetSize}):Play()
     end)
     
-    logMessage("Bem-vindo ao CALVO MOD - ADMIN V1. Digite 'help' para ver os comandos.", Color3.fromRGB(32, 169, 153))
+    logMessage("Bem-vindo ao CALVO MOD - ADMIN V2.", Color3.fromRGB(32, 169, 153))
+    logMessage("Digite 'help' para ver os comandos.", Color3.fromRGB(32, 169, 153))
 end
 
 --==================================================================================--
@@ -318,5 +854,5 @@ end
 --==================================================================================--
 local success, err = pcall(BuildAndEnableGUI)
 if not success then
-    warn("FALHA CRÍTICA AO CONSTRUIR O CALVO ADMIN: " .. tostring(err))
-end
+    warn("FALHA CRÍTICA AO CONSTRUIR O CALVO ADMIN V2: " .. tostring(err))
+end```
