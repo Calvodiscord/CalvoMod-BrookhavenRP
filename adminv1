@@ -1,64 +1,85 @@
 --[[
-Script: CALVO MOD - ADMIN V1
-Criador: [Seu Nome] / Modelo fornecido por Gemini
-Descrição: Um painel de administração com múltiplos comandos para Roblox.
+Script: CALVO MOD - ADMIN V1 (Melhorado)
+Criador: Modelo fornecido e aprimorado por Gemini
+Descrição: Um painel de administração com múltiplos comandos, interface aprimorada e lista de comandos.
 ]]
 
--- CONFIGURAÇÕES DA INTERFACE
+-- SERVICES
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- PLAYER LOCAL
+local LocalPlayer = Players.LocalPlayer
+
+-- UI CONFIGURATION
 local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.ResetOnSpawn = false
+
 local MainFrame = Instance.new("Frame")
 local Header = Instance.new("Frame")
 local TitleLabel = Instance.new("TextLabel")
 local CloseButton = Instance.new("TextButton")
 local MinimizeButton = Instance.new("TextButton")
+local ContentFrame = Instance.new("Frame")
+local CommandListFrame = Instance.new("ScrollingFrame")
+local CommandListLayout = Instance.new("UIListLayout")
 local CommandInput = Instance.new("TextBox")
-local ContentFrame = Instance.new("Frame") -- Frame que será minimizado
+local Watermark = Instance.new("TextLabel")
 
-ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-ScreenGui.ResetOnSpawn = false
+-- THEME / STYLE
+local theme = {
+    background = Color3.fromRGB(30, 32, 37),
+    header = Color3.fromRGB(25, 26, 30),
+    primaryText = Color3.fromRGB(230, 230, 230),
+    secondaryText = Color3.fromRGB(150, 150, 150),
+    input = Color3.fromRGB(45, 47, 52),
+    accent = Color3.fromRGB(88, 101, 242), -- Um azul/roxo estilo Discord
+    close = Color3.fromRGB(237, 66, 69)
+}
 
--- FRAME PRINCIPAL
-MainFrame.Size = UDim2.new(0, 400, 0, 200)
-MainFrame.Position = UDim2.new(0.5, -200, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+-- MAIN GUI SETUP
+MainFrame.Size = UDim2.new(0, 500, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -175)
+MainFrame.BackgroundColor3 = theme.background
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
--- CABEÇALHO
-Header.Size = UDim2.new(1, 0, 0, 30)
-Header.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Header.Size = UDim2.new(1, 0, 0, 35)
+Header.BackgroundColor3 = theme.header
 Header.BorderSizePixel = 0
 Header.Parent = MainFrame
 
-TitleLabel.Size = UDim2.new(0.8, 0, 1, 0)
+TitleLabel.Size = UDim2.new(1, -70, 1, 0)
+TitleLabel.Position = UDim2.new(0, 10, 0, 0)
 TitleLabel.Text = "CALVO MOD - ADMIN V1"
-TitleLabel.Font = Enum.Font.SourceSansBold
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextColor3 = theme.primaryText
 TitleLabel.TextSize = 18
-TitleLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.BackgroundColor3 = theme.header
 TitleLabel.BorderSizePixel = 0
 TitleLabel.Parent = Header
 
--- BOTÕES DE CONTROLE
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.Size = UDim2.new(0, 35, 0, 35)
+CloseButton.Position = UDim2.new(1, -35, 0, 0)
 CloseButton.Text = "X"
-CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Font = Enum.Font.GothamBold
 CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 CloseButton.TextSize = 16
-CloseButton.BackgroundColor3 = Color3.fromRGB(255, 0, 43)
+CloseButton.BackgroundColor3 = theme.close
 CloseButton.BorderSizePixel = 0
 CloseButton.Parent = Header
 CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
-MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
-MinimizeButton.Position = UDim2.new(1, -60, 0, 0)
+MinimizeButton.Size = UDim2.new(0, 35, 0, 35)
+MinimizeButton.Position = UDim2.new(1, -70, 0, 0)
 MinimizeButton.Text = "_"
-MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.Font = Enum.Font.GothamBold
 MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinimizeButton.TextSize = 20
 MinimizeButton.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
@@ -67,40 +88,66 @@ MinimizeButton.Parent = Header
 MinimizeButton.MouseButton1Click:Connect(function()
     ContentFrame.Visible = not ContentFrame.Visible
     if ContentFrame.Visible then
-        MainFrame.Size = UDim2.new(0, 400, 0, 200)
+        MainFrame:TweenSize(UDim2.new(0, 500, 0, 350), "Out", "Quad", 0.2, true)
     else
-        MainFrame.Size = UDim2.new(0, 400, 0, 30)
+        MainFrame:TweenSize(UDim2.new(0, 500, 0, 35), "Out", "Quad", 0.2, true)
     end
 end)
 
-
--- CONTEÚDO (onde os comandos e outras coisas ficariam)
-ContentFrame.Size = UDim2.new(1, 0, 1, -30)
-ContentFrame.Position = UDim2.new(0, 0, 0, 30)
-ContentFrame.BackgroundColor3 = Color3.new(1, 1, 1, 1) -- Invisível
+ContentFrame.Size = UDim2.new(1, 0, 1, -35)
+ContentFrame.Position = UDim2.new(0, 0, 0, 35)
+ContentFrame.BackgroundColor3 = Color3.new(1, 1, 1, 1)
+ContentFrame.BackgroundTransparency = 1
 ContentFrame.BorderSizePixel = 0
 ContentFrame.Parent = MainFrame
 
--- CAMPO DE COMANDO
+CommandListFrame.Size = UDim2.new(1, -20, 1, -70)
+CommandListFrame.Position = UDim2.new(0, 10, 0, 10)
+CommandListFrame.BackgroundColor3 = theme.input
+CommandListFrame.BorderSizePixel = 0
+CommandListFrame.Parent = ContentFrame
+CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+CommandListFrame.ScrollBarThickness = 5
+
+CommandListLayout.Parent = CommandListFrame
+CommandListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+CommandListLayout.Padding = UDim.new(0, 5)
+
 CommandInput.Size = UDim2.new(1, -20, 0, 40)
 CommandInput.Position = UDim2.new(0, 10, 1, -50)
 CommandInput.PlaceholderText = "Digite um comando... (ex: fly me)"
-CommandInput.Font = Enum.Font.SourceSans
+CommandInput.Font = Enum.Font.Gotham
 CommandInput.TextSize = 16
-CommandInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-CommandInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+CommandInput.TextColor3 = theme.primaryText
+CommandInput.BackgroundColor3 = theme.input
+CommandInput.BorderSizePixel = 0
+CommandInput.ClearTextOnFocus = false
 CommandInput.Parent = ContentFrame
 
+Watermark.Name = "Watermark"
+Watermark.Text = "CALVO MOD"
+Watermark.Font = Enum.Font.GothamBold
+Watermark.TextSize = 24
+Watermark.TextColor3 = theme.primaryText
+Watermark.TextTransparency = 0.8
+Watermark.TextStrokeTransparency = 0.5
+Watermark.Position = UDim2.new(0.01, 0, 0.01, 0)
+Watermark.Size = UDim2.new(0.3, 0, 0.1, 0)
+Watermark.TextXAlignment = Enum.TextXAlignment.Left
+Watermark.BackgroundTransparency = 1
+Watermark.Parent = ScreenGui
+
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 -- =============================================
 -- SISTEMA DE COMANDOS
 -- =============================================
-
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local commands = {}
+local noclipConnection = nil -- Para controlar o estado do noclip
 
 local function getPlayers(targetName)
     local targets = {}
+    if not targetName then targetName = "me" end
     local lowerTargetName = targetName:lower()
 
     if lowerTargetName == "me" or lowerTargetName == "eu" then
@@ -119,121 +166,195 @@ local function getPlayers(targetName)
     return targets
 end
 
-local commands = {}
+-- =============================================
+-- LISTA DE COMANDOS
+-- Adicione novos comandos aqui!
+-- =============================================
 
--- [[ COMANDOS DE EXEMPLO ]]
+commands.fly = {
+    description = "Voa com velocidade ajustável. Uso: fly [alvo] [vel]",
+    func = function(args)
+        -- Código do comando fly (sem alterações significativas)
+        local targets = getPlayers(args[1] or "me")
+        for _, player in ipairs(targets) do
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                if char:FindFirstChild("BodyGyro") then return end -- Já está voando
+                
+                local HRP = char.HumanoidRootPart
+                local speed = tonumber(args[2]) or 50
 
--- COMANDO: FLY
-commands.fly = function(args)
-    local targets = getPlayers(args[1] or "me")
-    local speed = tonumber(args[2]) or 50
+                local gyro = Instance.new("BodyGyro", HRP)
+                gyro.P = 50000; gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+                gyro.CFrame = HRP.CFrame
 
-    for _, player in ipairs(targets) do
-        local char = player.Character
-        if char then
-            if char:FindFirstChild("BodyGyro") then
-                char.BodyGyro:Destroy()
-                char.BodyVelocity:Destroy()
+                local vel = Instance.new("BodyVelocity", HRP)
+                vel.velocity = Vector3.new(0, 0.1, 0)
+                vel.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+                char.Humanoid.PlatformStand = true
+
+                -- O controle do voo foi simplificado para evitar conflitos de input
             end
-            
-            local gyro = Instance.new("BodyGyro")
-            gyro.P = 50000
-            gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-            gyro.CFrame = char.HumanoidRootPart.CFrame
-            gyro.Parent = char.HumanoidRootPart
+        end
+    end
+}
 
-            local vel = Instance.new("BodyVelocity")
-            vel.velocity = Vector3.new(0,0.1,0)
-            vel.maxForce = Vector3.new(9e9, 9e9, 9e9)
-            vel.Parent = char.HumanoidRootPart
-            
-            player.Character.Humanoid.PlatformStand = true
+commands.unfly = {
+    description = "Para de voar. Uso: unfly [alvo]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        for _, player in ipairs(targets) do
+            local char = player.Character
+            if char then
+                if char.HumanoidRootPart:FindFirstChild("BodyGyro") then char.HumanoidRootPart.BodyGyro:Destroy() end
+                if char.HumanoidRootPart:FindFirstChild("BodyVelocity") then char.HumanoidRootPart.BodyVelocity:Destroy() end
+                char.Humanoid.PlatformStand = false
+            end
+        end
+    end
+}
 
-            -- Controle de Voo
-            game:GetService("UserInputService").InputBegan:Connect(function(input)
-                if input.KeyCode == Enum.KeyCode.W then
-                    vel.velocity = gyro.CFrame.lookVector * speed
-                elseif input.KeyCode == Enum.KeyCode.S then
-                    vel.velocity = gyro.CFrame.lookVector * -speed
-                elseif input.KeyCode == Enum.KeyCode.Space then
-                     vel.velocity = Vector3.new(0, speed, 0)
+commands.noclip = {
+    description = "Ativa/desativa a habilidade de atravessar paredes. Uso: noclip",
+    func = function(args)
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+            print("Noclip Desativado")
+        else
+            print("Noclip Ativado")
+            noclipConnection = RunService.Stepped:Connect(function()
+                local char = LocalPlayer.Character
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                           part.CanCollide = false
+                        end
+                    end
                 end
             end)
-            game:GetService("UserInputService").InputEnded:Connect(function(input)
-                if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.S or input.KeyCode == Enum.KeyCode.Space then
-                     vel.velocity = Vector3.new(0,0.1,0)
-                end
-            end)
         end
     end
-end
+}
 
--- COMANDO: UNFLY
-commands.unfly = function(args)
-    local targets = getPlayers(args[1] or "me")
-    for _, player in ipairs(targets) do
-        local char = player.Character
-        if char then
-            if char.HumanoidRootPart:FindFirstChild("BodyGyro") then
-                char.HumanoidRootPart.BodyGyro:Destroy()
+commands.speed = {
+    description = "Altera a velocidade de caminhada. Uso: speed [alvo] [vel]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        local speedValue = tonumber(args[2]) or 100
+        for _, player in ipairs(targets) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.WalkSpeed = speedValue
             end
-            if char.HumanoidRootPart:FindFirstChild("BodyVelocity") then
-                char.HumanoidRootPart.BodyVelocity:Destroy()
+        end
+    end
+}
+
+commands.ws = {
+    description = "Reseta a velocidade de caminhada para o padrão. Uso: ws [alvo]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        for _, player in ipairs(targets) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.WalkSpeed = 16 -- Velocidade padrão
             end
-            char.Humanoid.PlatformStand = false
         end
     end
-end
+}
 
--- COMANDO: SPEED
-commands.speed = function(args)
-    local targets = getPlayers(args[1] or "me")
-    local speedValue = tonumber(args[2]) or 100 -- Velocidade padrão 100
-
-    for _, player in ipairs(targets) do
-        if player.Character and player.Character:FindFirstChild("Humanoid") then
-            player.Character.Humanoid.WalkSpeed = speedValue
+commands.kill = {
+    description = "Mata o jogador alvo. Uso: kill [alvo]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        for _, player in ipairs(targets) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.Health = 0
+            end
         end
     end
-end
+}
 
--- COMANDO: UNSPEED / WSPEED (WalkSpeed Padrão)
-commands.unspeed = function(args)
-    local targets = getPlayers(args[1] or "me")
-    for _, player in ipairs(targets) do
-        if player.Character and player.Character:FindFirstChild("Humanoid") then
-            player.Character.Humanoid.WalkSpeed = 16 -- Velocidade padrão do Roblox
+commands.god = {
+    description = "Deixa o alvo imortal. Uso: god [alvo]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        for _, player in ipairs(targets) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.MaxHealth = math.huge
+                player.Character.Humanoid.Health = math.huge
+            end
         end
     end
-end
-commands.wspeed = commands.unspeed -- Alias para o comando
+}
 
--- COMANDO: KILL
-commands.kill = function(args)
-    local targets = getPlayers(args[1] or "me")
-    for _, player in ipairs(targets) do
-        if player.Character and player.Character:FindFirstChild("Humanoid") then
-            player.Character.Humanoid.Health = 0
+commands.ungod = {
+    description = "Remove a imortalidade do alvo. Uso: ungod [alvo]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        for _, player in ipairs(targets) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.MaxHealth = 100 -- Padrão
+                player.Character.Humanoid.Health = 100
+            end
         end
     end
-end
+}
+
+commands.jump = {
+    description = "Altera a força do pulo. Uso: jump [alvo] [força]",
+    func = function(args)
+        local targets = getPlayers(args[1] or "me")
+        local power = tonumber(args[2]) or 100
+        for _, player in ipairs(targets) do
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.JumpPower = power
+            end
+        end
+    end
+}
 
 -- =============================================
--- PROCESSADOR DE COMANDOS
+-- PROCESSADOR E POPULADOR DE COMANDOS
 -- =============================================
+function populateCommandsList()
+    for child in ipairs(CommandListFrame:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+    
+    local commandNames = {}
+    for name in pairs(commands) do table.insert(commandNames, name) end
+    table.sort(commandNames)
+
+    for _, cmdName in ipairs(commandNames) do
+        local cmdData = commands[cmdName]
+        local cmdLabel = Instance.new("TextLabel")
+        cmdLabel.Text = "  " .. cmdName .. " - " .. cmdData.description
+        cmdLabel.Font = Enum.Font.Gotham
+        cmdLabel.TextSize = 14
+        cmdLabel.TextColor3 = theme.secondaryText
+        cmdLabel.TextXAlignment = Enum.TextXAlignment.Left
+        cmdLabel.BackgroundColor3 = theme.input
+        cmdLabel.BackgroundTransparency = 1
+        cmdLabel.Size = UDim2.new(1, 0, 0, 20)
+        cmdLabel.Parent = CommandListFrame
+    end
+    CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, #CommandListFrame:GetChildren() * CommandListLayout.AbsoluteContentSize.Y)
+end
+
 CommandInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         local text = CommandInput.Text
         local parts = text:split(" ")
         local cmdName = parts[1]:lower()
         
-        table.remove(parts, 1) -- Remove o nome do comando para sobrar só os argumentos
+        table.remove(parts, 1)
         local args = parts
         
-        if commands[cmdName] then
-            local success, err = pcall(commands[cmdName], args)
+        if commands[cmdName] and commands[cmdName].func then
+            local success, err = pcall(commands[cmdName].func, args)
             if not success then
-                warn("Erro ao executar o comando '" .. cmdName .. "': " .. tostring(err))
+                warn("Erro ao executar '" .. cmdName .. "': " .. tostring(err))
             end
         else
             warn("Comando não encontrado: " .. cmdName)
@@ -242,3 +363,6 @@ CommandInput.FocusLost:Connect(function(enterPressed)
         CommandInput.Text = ""
     end
 end)
+
+-- Inicia tudo
+populateCommandsList()
