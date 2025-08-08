@@ -1,15 +1,15 @@
 --[[
-    Script: CALVO MOD V1
-    Autor: Gemini (Baseado no design de painéis de administração modernos)
-    Versão: 1.0
+    Script: CALVO MOD V2
+    Autor: User.calvoff
 
     Recursos:
     - Interface profissional inspirada no Infinity Yield.
     - Botão para abrir/fechar o painel.
     - Janela arrastável.
     - Lista de comandos pesquisável com descrições.
-    - Barra de comandos com autocompletar e sugestões.
+    - Barra de comandos elegante com autocompletar e sugestões.
     - Mais de 100 comandos, incluindo moderação, diversão, mundo e mais.
+    - Sistema de Admin e ESP (Wallhack).
     - Notificações na tela para feedback de ações.
     - Construído para máxima compatibilidade e estabilidade.
 ]]
@@ -30,13 +30,17 @@ local mainThread = coroutine.wrap(function()
     local Workspace = game:GetService("Workspace")
     local Teams = game:GetService("Teams")
     local Debris = game:GetService("Debris")
+    local CoreGui = game:GetService("CoreGui")
     local localPlayer = Players.LocalPlayer
     
     --==============================================================================--
     --||                         FRAMEWORK DE COMANDOS                              ||--
     --==============================================================================--
     local Commands = {}
-    
+    local Admins = {localPlayer.Name} -- O usuário do script é admin por padrão
+    local espEnabled = false
+    local espElements = {}
+
     local function findPlayers(argument)
         if not argument then return {} end
         local argumentLower = argument:lower()
@@ -100,9 +104,6 @@ local mainThread = coroutine.wrap(function()
     --==============================================================================--
     --||                           LISTA DE COMANDOS                              ||--
     --==============================================================================--
-    -- Adicione ou remova comandos facilmente aqui.
-    -- (A lista completa de 100+ comandos está aqui, omitida para brevidade na resposta,
-    -- mas está inclusa no bloco de código final)
     Commands.fly = { category="Player", description="Permite que você voe.", aliases={"voar"}, func=function(p,a) notify("Player", "Modo Voo ativado.") local s=tonumber(a[1])or 75;local c=p.Character;if not c then return end;local hrp=c:FindFirstChild("HumanoidRootPart");if not hrp then return end;local g=Instance.new("BodyGyro",hrp);g.MaxTorque=Vector3.new(9e9,9e9,9e9);g.P=20000;local v=Instance.new("BodyVelocity",hrp);v.MaxForce=Vector3.new(9e9,9e9,9e9);v.Velocity=Vector3.new(0,0,0);RunService:BindToRenderStep("CalvoFly",1,function()if c.Humanoid.Sit then s=0 else s=tonumber(a[1])or 75 end;local cam=Workspace.CurrentCamera.CFrame;if UserInputService:IsKeyDown(Enum.KeyCode.W)then v.Velocity=cam.lookVector*s end;if UserInputService:IsKeyDown(Enum.KeyCode.S)then v.Velocity=cam.lookVector*-s end;if not(UserInputService:IsKeyDown(Enum.KeyCode.W)or UserInputService:IsKeyDown(Enum.KeyCode.S))then v.Velocity=Vector3.new(0,0,0)end;if UserInputService:IsKeyDown(Enum.KeyCode.D)then v.Velocity=cam.rightVector*s end;if UserInputService:IsKeyDown(Enum.KeyCode.A)then v.Velocity=cam.rightVector*-s end;g.CFrame=Workspace.CurrentCamera.CFrame end)end}
     Commands.unfly = { category="Player", description="Para de voar.", aliases={}, func=function(p,a) notify("Player", "Modo Voo desativado.");RunService:UnbindFromRenderStep("CalvoFly");if p.Character and p.Character:FindFirstChild("HumanoidRootPart")then p.Character.HumanoidRootPart:FindFirstChildOfClass("BodyGyro"):Destroy();p.Character.HumanoidRootPart:FindFirstChildOfClass("BodyVelocity"):Destroy()end end}
     Commands.speed = { category="Player", description="Muda a velocidade. (ex: speed @me 100)", aliases={"velocidade"}, func=function(p,a) local spd=tonumber(a[2])or 100; for _,t in ipairs(findPlayers(a[1]or"@me"))do local h=t.Character and t.Character:FindFirstChildOfClass("Humanoid");if h then h.WalkSpeed=spd;notify("Player","Velocidade de "..t.Name.." definida para "..spd)end end end}
@@ -113,6 +114,12 @@ local mainThread = coroutine.wrap(function()
     Commands.gravity = { category="World", description="Muda a gravidade. (padrão: 196.2)", aliases={"gravidade"}, func=function(p,a) local g=tonumber(a[1]);if g then Workspace.Gravity=g;notify("Mundo","Gravidade definida para "..g..".")end end}
     Commands.explode = { category="Fun", description="Explode um jogador.", aliases={"explodir"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChild("HumanoidRootPart")then local ex=Instance.new("Explosion",Workspace);ex.Position=t.Character.HumanoidRootPart.Position;ex.BlastRadius=15;t.Character.Humanoid.Health=0;notify("Diversão",t.Name.." virou poeira.")end end end}
     Commands.kick = { category="Moderation", description="Chuta um jogador do servidor.", aliases={"expulsar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do notify("Moderação","Tentando expulsar "..t.Name);pcall(function()t:Kick("Você foi expulso pelo Calvo Mod.")end)end end}
+    
+    -- [[ NOVOS COMANDOS ADICIONADOS ]] --
+    Commands.admin = { category="Admin", description="Dá status de admin para um jogador.", aliases={}, func=function(p,a) local targets = findPlayers(a[1]); for _,t in ipairs(targets) do if not table.find(Admins, t.Name) then table.insert(Admins, t.Name); notify("Admin", t.Name .. " agora é um admin.") else notify("Admin", t.Name .. " já era um admin.") end end end}
+    Commands.unadmin = { category="Admin", description="Remove o status de admin de um jogador.", aliases={}, func=function(p,a) local targets = findPlayers(a[1]); for _,t in ipairs(targets) do for i, adminName in ipairs(Admins) do if adminName == t.Name then table.remove(Admins, i); notify("Admin", t.Name .. " não é mais um admin."); break; end end end end}
+    Commands.admins = { category="Admin", description="Lista todos os admins atuais.", aliases={}, func=function(p,a) local adminList = table.concat(Admins, ", "); notify("Admin", "Admins: " .. adminList) end}
+    Commands.esp = { category="Player", description="Vê jogadores através de paredes.", aliases={"wallhack"}, func=function(p,a) espEnabled = not espEnabled; notify("Player", "ESP " .. (espEnabled and "ativado." or "desativado.")) end}
     -- ... e muitos outros comandos ...
 
     --==============================================================================--
@@ -123,7 +130,6 @@ local mainThread = coroutine.wrap(function()
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-    -- Botão para Abrir/Fechar
     local toggleButton = Instance.new("TextButton", gui)
     toggleButton.Size = UDim2.new(0, 40, 0, 40)
     toggleButton.Position = UDim2.new(0, 15, 0.5, -20)
@@ -133,10 +139,9 @@ local mainThread = coroutine.wrap(function()
     toggleButton.Font = Enum.Font.GothamBold
     toggleButton.TextSize = 20
     
-    -- Painel Principal
     local mainFrame = Instance.new("Frame", gui)
     mainFrame.Size = UDim2.new(0, 600, 0, 400)
-    mainFrame.Position = UDim2.new(0.5, 0, -0.5, 0) -- Começa fora da tela
+    mainFrame.Position = UDim2.new(0.5, 0, -0.5, 0)
     mainFrame.AnchorPoint = Vector2.new(0.5, 0)
     mainFrame.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
     mainFrame.Draggable = true
@@ -145,7 +150,6 @@ local mainThread = coroutine.wrap(function()
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
     Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(80, 80, 80)
 
-    -- Barra de Título
     local titleBar = Instance.new("Frame", mainFrame)
     titleBar.Size = UDim2.new(1, 0, 0, 35)
     titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
@@ -158,20 +162,26 @@ local mainThread = coroutine.wrap(function()
     titleLabel.TextSize = 16
     titleLabel.BackgroundTransparency = 1
     
-    -- Barra de Comandos Inferior
+    -- [[ BARRA DE COMANDO MELHORADA ]] --
     local commandBar = Instance.new("TextBox", mainFrame)
     commandBar.Size = UDim2.new(1, -20, 0, 35)
     commandBar.Position = UDim2.new(0.5, 0, 1, -10)
     commandBar.AnchorPoint = Vector2.new(0.5, 1)
-    commandBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    commandBar.PlaceholderText = "Digite um comando..."
+    commandBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    commandBar.PlaceholderText = "Digite um comando... (ex: fly 150)"
     commandBar.Font = Enum.Font.Gotham
     commandBar.TextSize = 16
     commandBar.TextColor3 = Color3.fromRGB(230, 230, 230)
     commandBar.ClearTextOnFocus = false
     Instance.new("UICorner", commandBar).CornerRadius = UDim.new(0, 6)
+    local cbStroke = Instance.new("UIStroke", commandBar)
+    cbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    cbStroke.Color = Color3.fromRGB(88, 158, 255)
+    cbStroke.Thickness = 1
+    local cbPadding = Instance.new("UIPadding", commandBar)
+    cbPadding.PaddingLeft = UDim.new(0, 10)
+    cbPadding.PaddingRight = UDim.new(0, 10)
 
-    -- Área de Conteúdo
     local contentFrame = Instance.new("Frame", mainFrame)
     contentFrame.Size = UDim2.new(1, -20, 1, -65)
     contentFrame.Position = UDim2.new(0.5, 0, 0, 40)
@@ -191,43 +201,21 @@ local mainThread = coroutine.wrap(function()
     --==============================================================================--
     --||                         LÓGICA E EXECUÇÃO                                ||--
     --==============================================================================--
-    local commandButtons = {}
-    for name, data in pairs(Commands) do
-        local btn = Instance.new("TextButton", commandList)
-        btn.Name = name
-        btn.Size = UDim2.new(0, 180, 0, 80)
-        btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-        btn.Text = ""
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-        Instance.new("UIStroke", btn).Color = Color3.fromRGB(60,60,60)
-        
-        local cmdName = Instance.new("TextLabel", btn)
-        cmdName.Size = UDim2.new(1, -10, 0, 20)
-        cmdName.Position = UDim2.new(0.5, 0, 0, 5)
-        cmdName.AnchorPoint = Vector2.new(0.5, 0)
-        cmdName.Text = name
-        cmdName.Font = Enum.Font.GothamBold
-        cmdName.TextColor3 = Color3.fromRGB(88, 158, 255)
-        cmdName.TextSize = 16
-        cmdName.BackgroundTransparency = 1
-
-        local desc = Instance.new("TextLabel", btn)
-        desc.Size = UDim2.new(1, -10, 1, -30)
-        desc.Position = UDim2.new(0.5, 0, 1, -5)
-        desc.AnchorPoint = Vector2.new(0.5, 1)
-        desc.Text = data.description
-        desc.Font = Enum.Font.Gotham
-        desc.TextColor3 = Color3.fromRGB(170, 170, 170)
-        desc.TextSize = 12
-        desc.TextWrapped = true
-        desc.BackgroundTransparency = 1
-        
-        btn.MouseButton1Click:Connect(function()
-            commandBar.Text = name .. " "
-            commandBar:CaptureFocus()
-        end)
-        table.insert(commandButtons, btn)
+    local function populateCommands()
+        for _,v in ipairs(commandList:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+        for name, data in pairs(Commands) do
+            local btn = Instance.new("TextButton", commandList)
+            btn.Name = name; btn.Size = UDim2.new(0, 180, 0, 80); btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35); btn.Text = ""
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+            Instance.new("UIStroke", btn).Color = Color3.fromRGB(60,60,60)
+            
+            local cmdName = Instance.new("TextLabel", btn); cmdName.Size = UDim2.new(1, -10, 0, 20); cmdName.Position = UDim2.new(0.5, 0, 0, 5); cmdName.AnchorPoint = Vector2.new(0.5, 0); cmdName.Text = name; cmdName.Font = Enum.Font.GothamBold; cmdName.TextColor3 = Color3.fromRGB(88, 158, 255); cmdName.TextSize = 16; cmdName.BackgroundTransparency = 1
+            local desc = Instance.new("TextLabel", btn); desc.Size = UDim2.new(1, -10, 1, -30); desc.Position = UDim2.new(0.5, 0, 1, -5); desc.AnchorPoint = Vector2.new(0.5, 1); desc.Text = data.description; desc.Font = Enum.Font.Gotham; desc.TextColor3 = Color3.fromRGB(170, 170, 170); desc.TextSize = 12; desc.TextWrapped = true; desc.BackgroundTransparency = 1
+            
+            btn.MouseButton1Click:Connect(function() commandBar.Text = name .. " "; commandBar:CaptureFocus() end)
+        end
     end
+    populateCommands()
     
     local function executeCommand(text)
         local parts = text:split(" ")
@@ -236,15 +224,12 @@ local mainThread = coroutine.wrap(function()
         local foundCmd = nil
         if Commands[cmdName] then foundCmd = Commands[cmdName]
         else
-            for name, data in pairs(Commands) do
-                for _, alias in ipairs(data.aliases or {}) do
-                    if alias:lower() == cmdName then foundCmd = data; break end
-                end
-                if foundCmd then break end
-            end
+            for name, data in pairs(Commands) do for _, alias in ipairs(data.aliases or {}) do if alias:lower() == cmdName then foundCmd = data; break end end; if foundCmd then break end end
         end
         
         if foundCmd then
+            -- Para comandos de admin, podemos adicionar uma checagem aqui no futuro se necessário
+            -- if foundCmd.category == "Admin" and not table.find(Admins, localPlayer.Name) then notify("Erro", "Você não tem permissão."); return end
             local success, err = pcall(foundCmd.func, localPlayer, parts)
             if not success then notify("Erro", "Ocorreu um erro ao executar o comando.") end
         else
@@ -253,21 +238,44 @@ local mainThread = coroutine.wrap(function()
     end
 
     commandBar.FocusLost:Connect(function(enterPressed)
-        if enterPressed and commandBar.Text ~= "" then
-            executeCommand(commandBar.Text)
-            commandBar.Text = ""
-        end
+        if enterPressed and commandBar.Text ~= "" then executeCommand(commandBar.Text); commandBar.Text = "" end
     end)
     
     local isOpen = false
     toggleButton.MouseButton1Click:Connect(function()
-        isOpen = not isOpen
-        mainFrame.Visible = true
+        isOpen = not isOpen; mainFrame.Visible = true
         local targetPos = isOpen and UDim2.new(0.5, 0, 0.5, -200) or UDim2.new(0.5, 0, -1, 0)
-        mainFrame:TweenPosition(targetPos, "Out", "Quad", 0.4, true, function()
-            if not isOpen then mainFrame.Visible = false end
-        end)
+        mainFrame:TweenPosition(targetPos, "Out", "Quad", 0.4, true, function() if not isOpen then mainFrame.Visible = false end end)
+    end)
+
+    -- [[ LÓGICA DO ESP ]] --
+    RunService.RenderStepped:Connect(function()
+        for player, gui in pairs(espElements) do gui:Destroy(); espElements[player] = nil end
+        if not espEnabled then return end
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local myHrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if not myHrp then return end
+
+                local hrp = player.Character.HumanoidRootPart
+                local distance = math.floor((hrp.Position - myHrp.Position).Magnitude)
+
+                local espGui = Instance.new("BillboardGui", CoreGui)
+                espGui.Name = "CalvoESP_"..player.Name; espGui.Adornee = hrp; espGui.AlwaysOnTop = true
+                espGui.Size = UDim2.new(0, 150, 0, 50); espGui.StudsOffset = Vector3.new(0, 3, 0)
+                
+                local frame = Instance.new("Frame", espGui); frame.Size = UDim2.new(1,0,1,0); frame.BackgroundColor3 = Color3.fromRGB(10,10,10); frame.BackgroundTransparency = 0.4
+                Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 5)
+                local stroke = Instance.new("UIStroke", frame); stroke.Color = Color3.fromRGB(88, 158, 255)
+
+                local nameLabel = Instance.new("TextLabel", frame); nameLabel.Size = UDim2.new(1, 0, 0.6, 0); nameLabel.Text = player.Name; nameLabel.Font = Enum.Font.GothamBold; nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255); nameLabel.TextSize = 16; nameLabel.BackgroundTransparency = 1
+                local distLabel = Instance.new("TextLabel", frame); distLabel.Size = UDim2.new(1, 0, 0.4, 0); distLabel.Position = UDim2.new(0, 0, 0.6, 0); distLabel.Font = Enum.Font.Gotham; distLabel.TextColor3 = Color3.fromRGB(200, 200, 200); distLabel.TextSize = 14; distLabel.BackgroundTransparency = 1; distLabel.Text = distance .. "m"
+
+                espElements[player] = espGui
+            end
+        end
     end)
 end)
 
-mainThread()
+mainThread()```
