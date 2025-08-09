@@ -10,15 +10,14 @@
 --==================================================================================--
 --||                          INICIALIZAÇÃO E SERVIÇOS                            ||--
 --==================================================================================--
-local mainThread = coroutine.wrap(function()
-    if not game:IsLoaded() then game.Loaded:Wait() end
+if not game:IsLoaded() then game.Loaded:Wait() end
 
-    local Players, TweenService, RunService, UserInputService, TeleportService, Lighting, Workspace, Debris = 
-        game:GetService("Players"), game:GetService("TweenService"), game:GetService("RunService"), 
-        game:GetService("UserInputService"), game:GetService("TeleportService"), game:GetService("Lighting"), 
-        game:GetService("Workspace"), game:GetService("Debris")
-    local localPlayer = Players.LocalPlayer
-    
+local Players, TweenService, RunService, UserInputService, TeleportService, Lighting, Workspace, Debris = 
+    game:GetService("Players"), game:GetService("TweenService"), game:GetService("RunService"), 
+    game:GetService("UserInputService"), game:GetService("TeleportService"), game:GetService("Lighting"), 
+    game:GetService("Workspace"), game:GetService("Debris")
+local localPlayer = Players.LocalPlayer
+-- (o resto do código continua igual)
     --==============================================================================--
     --||                         FRAMEWORK DE COMANDOS                              ||--
     --==============================================================================--
@@ -148,9 +147,8 @@ local mainThread = coroutine.wrap(function()
         local isOpen=false;toggleButton.MouseButton1Click:Connect(function()isOpen=not isOpen;mainFrame.Visible=true;local pos=isOpen and UDim2.new(0.5,0,0.5,-200)or UDim2.new(0.5,0,-1,0);mainFrame:TweenPosition(pos,"Out","Quad",0.4,true,function()if not isOpen then mainFrame.Visible=false end end)end)
     end)
 
+    -- (código da UI continua aqui) ...
     if not success then
         notify("ERRO CRÍTICO AO CRIAR UI: " .. tostring(err))
     end
-end)
-
-mainThread()
+-- (as linhas "end)" e "mainThread()" foram removidas)
