@@ -1,7 +1,6 @@
 --[[
     Script: Zenith UI for 99 Noites na Floresta
-    Versão: 3.0
-    Inspirado por: Solicitação de design do usuário
+    Versão: 3.1 (Correção de erro de UI)
     Funcionalidades:
     - UI Profissional com sistema de categorias (API interna)
     - Sistema de Chave de Acesso
@@ -22,7 +21,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Camera = Workspace.CurrentCamera
 
 local Config = {
-    Key = "ZENITH-99-PRO-V3",
+    Key = "ZENITH-V3-FIXED",
     WindowTitle = "99 Noites - Painel Zenith"
 }
 
@@ -147,8 +146,13 @@ function Zenith:CreateCategory(name)
         Zenith.ActiveCategory = Page
     end)
 
+    -- === CORREÇÃO APLICADA AQUI ===
     if not Zenith.ActiveCategory then
-        CategoryButton:Invoke()
+        -- Em vez de :Invoke(), ativamos a primeira categoria manualmente
+        Page.Visible = true
+        CategoryButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+        CategoryButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Zenith.ActiveCategory = Page
     end
     
     return Page
@@ -222,25 +226,33 @@ end
 local function create_esp_element(parent_obj)
     local esp_element = {}
     
-    local box = Instance.new("Frame")
+    local box = Instance.new("BoxHandleAdornment")
     box.Parent = ESP_Container
-    box.BorderSizePixel = 2
-    box.BorderColor3 = Color3.fromRGB(0, 255, 255)
-    box.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
-    box.BackgroundTransparency = 0.8
+    box.Adornee = parent_obj
+    box.AlwaysOnTop = true
     box.ZIndex = 2
+    box.Size = parent_obj:GetExtentsSize() + Vector3.new(0.5, 0.5, 0.5)
+    box.Color3 = Color3.fromRGB(0, 255, 255)
+    box.Transparency = 0.5
     
-    local name_label = Instance.new("TextLabel")
+    local name_label = Instance.new("BillboardGui")
     name_label.Parent = ESP_Container
-    name_label.Font = Enum.Font.SourceSans
-    name_label.TextSize = 14
-    name_label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    name_label.BackgroundTransparency = 1
-    name_label.ZIndex = 3
+    name_label.Adornee = parent_obj
+    name_label.AlwaysOnTop = true
+    name_label.Size = UDim2.new(0, 150, 0, 30)
+    name_label.StudsOffset = Vector3.new(0, 2, 0)
+    
+    local text = Instance.new("TextLabel", name_label)
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.Font = Enum.Font.SourceSans
+    text.TextSize = 14
+    text.TextColor3 = Color3.fromRGB(255, 255, 255)
+    text.BackgroundTransparency = 1
     
     esp_element.Box = box
     esp_element.NameLabel = name_label
-    esp_element.Parent = parent_obj
+    esp_element.NameText = text
+    esp_element.Adornee = parent_obj
     
     return esp_element
 end
@@ -248,25 +260,39 @@ end
 local esp_objects = {}
 
 RunService.RenderStepped:Connect(function()
-    ESP_Container.Enabled = (ESP_Settings.Players or ESP_Settings.Mobs or ESP_Settings.Wood or ESP_Settings.Coal)
-    if not ESP_Container.Enabled then return end
+    local active_esps = (ESP_Settings.Players or ESP_Settings.Mobs or ESP_Settings.Wood or ESP_Settings.Coal)
 
+    for adornee, esp_element in pairs(esp_objects) do
+        local should_be_visible = false
+        if ESP_Settings.Players and adornee:IsA("Model") and Players:GetPlayerFromCharacter(adornee) then should_be_visible = true end
+        if ESP_Settings.Mobs and adornee:IsA("Model") and adornee.Parent == Workspace:FindFirstChild("Monsters") then should_be_visible = true end
+        if ESP_Settings.Wood and adornee:IsA("Part") and adornee.Name == "Wood" then should_be_visible = true end
+        if ESP_Settings.Coal and adornee:IsA("Part") and adornee.Name == "Coal" then should_be_visible = true end
+        
+        if esp_element.Box.Parent and not should_be_visible then
+            esp_element.Box:Destroy()
+            esp_element.NameLabel:Destroy()
+            esp_objects[adornee] = nil
+        end
+    end
+
+    if not active_esps then return end
+    
     local objects_to_draw = {}
     
     if ESP_Settings.Players then
         for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
                 table.insert(objects_to_draw, {obj = player.Character, name = player.Name, color = Color3.fromRGB(255, 50, 50)})
             end
         end
     end
 
     if ESP_Settings.Mobs then
-        -- ATENÇÃO: O nome da pasta "Monsters" pode variar. Ajuste se necessário.
         local monsterFolder = Workspace:FindFirstChild("Monsters")
         if monsterFolder then
             for _, mob in pairs(monsterFolder:GetChildren()) do
-                if mob:FindFirstChild("HumanoidRootPart") then
+                if mob:IsA("Model") and mob.PrimaryPart then
                     table.insert(objects_to_draw, {obj = mob, name = mob.Name, color = Color3.fromRGB(255, 120, 0)})
                 end
             end
@@ -274,41 +300,23 @@ RunService.RenderStepped:Connect(function()
     end
 
     if ESP_Settings.Wood or ESP_Settings.Coal then
-        -- ATENÇÃO: A forma como os recursos são armazenados pode variar.
         for _, item in pairs(Workspace:GetDescendants()) do
-            if ESP_Settings.Wood and item.Name == "Wood" and item:IsA("Part") then
-                 table.insert(objects_to_draw, {obj = item, name = "Madeira", color = Color3.fromRGB(139, 69, 19)})
-            end
-            if ESP_Settings.Coal and item.Name == "Coal" and item:IsA("Part") then
-                 table.insert(objects_to_draw, {obj = item, name = "Carvão", color = Color3.fromRGB(80, 80, 80)})
+            if item:IsA("Part") then
+                 if ESP_Settings.Wood and (item.Name == "Wood" or item.Name == "Tree") then
+                     table.insert(objects_to_draw, {obj = item, name = "Madeira", color = Color3.fromRGB(139, 69, 19)})
+                 end
+                 if ESP_Settings.Coal and item.Name == "Coal" then
+                     table.insert(objects_to_draw, {obj = item, name = "Carvão", color = Color3.fromRGB(80, 80, 80)})
+                 end
             end
         end
     end
     
-    for _, esp_element in pairs(esp_objects) do
-        esp_element.Box.Visible = false
-        esp_element.NameLabel.Visible = false
-    end
-
-    for i, data in pairs(objects_to_draw) do
-        local pos, on_screen = Camera:WorldToScreenPoint(data.obj:IsA("Model") and data.obj.PrimaryPart.Position or data.obj.Position)
-        if on_screen then
-            if not esp_objects[i] then
-                esp_objects[i] = create_esp_element(data.obj)
-            end
-            
-            local esp_element = esp_objects[i]
-            esp_element.Box.Visible = true
-            esp_element.NameLabel.Visible = true
-            
-            local size = math.clamp(5000 / pos.Z, 10, 100)
-            esp_element.Box.Size = UDim2.fromOffset(size, size)
-            esp_element.Box.Position = UDim2.fromOffset(pos.X - size/2, pos.Y - size/2)
-            esp_element.Box.BorderColor3 = data.color
-            esp_element.Box.BackgroundColor3 = data.color
-
-            esp_element.NameLabel.Text = data.name
-            esp_element.NameLabel.Position = UDim2.fromOffset(pos.X - (esp_element.NameLabel.TextBounds.X/2), pos.Y - size/2 - 20)
+    for _, data in pairs(objects_to_draw) do
+        if not esp_objects[data.obj] then
+            esp_objects[data.obj] = create_esp_element(data.obj)
+            esp_objects[data.obj].NameText.Text = data.name
+            esp_objects[data.obj].Box.Color3 = data.color
         end
     end
 end)
@@ -331,7 +339,9 @@ local function Main()
         end
     end)
     Zenith:CreateButton(cat_principal, "Estamina Infinita", function()
-        LocalPlayer.PlayerValues.Stamina.Value = LocalPlayer.PlayerValues.MaxStamina.Value
+        if LocalPlayer.PlayerValues and LocalPlayer.PlayerValues:FindFirstChild("Stamina") then
+            LocalPlayer.PlayerValues.Stamina.Value = LocalPlayer.PlayerValues.MaxStamina.Value
+        end
     end)
     Zenith:CreateButton(cat_principal, "Aumentar Velocidade (50)", function()
         LocalPlayer.Character.Humanoid.WalkSpeed = 50
@@ -342,7 +352,9 @@ local function Main()
 
     local cat_mundo = Zenith:CreateCategory("Mundo")
     Zenith:CreateButton(cat_mundo, "Vencer a Noite", function()
-        ReplicatedStorage.DefaultRemotes.NightEvent:FireServer("Win")
+        if ReplicatedStorage:FindFirstChild("DefaultRemotes") and ReplicatedStorage.DefaultRemotes:FindFirstChild("NightEvent") then
+            ReplicatedStorage.DefaultRemotes.NightEvent:FireServer("Win")
+        end
     end)
     Zenith:CreateButton(cat_mundo, "Teleportar p/ Loja", function()
         LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-16, 5, 21)
@@ -390,6 +402,7 @@ end
 --================================================================================================--
 do
     local keyScreen = Instance.new("ScreenGui", PlayerGui)
+    keyScreen.Name = "KeyAuthScreen"
     local frame = Instance.new("Frame", keyScreen)
     frame.Size = UDim2.new(0, 300, 0, 150)
     frame.Position = UDim2.new(0.5, -150, 0.5, -75)
