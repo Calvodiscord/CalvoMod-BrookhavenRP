@@ -1,14 +1,14 @@
 --[[
     Script: Zenith UI for 99 Noites na Floresta
-    Versão: 3.1 (Correção de erro de UI)
+    Versão: 3.2 (Correção de inicialização e input)
     Funcionalidades:
-    - UI Profissional com sistema de categorias (API interna)
+    - UI Profissional com inicialização estável
     - Sistema de Chave de Acesso
-    - Comandos do jogo + Sistema de ESP completo (Players, Mobs, Recursos)
+    - Comandos do jogo + Sistema de ESP completo
 ]]
 
 --================================================================================================--
--- [ CONFIGURAÇÕES E SERVIÇOS ]
+-- [ SERVIÇOS E CONFIGURAÇÕES ]
 --================================================================================================--
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -21,92 +21,93 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Camera = Workspace.CurrentCamera
 
 local Config = {
-    Key = "ZENITH-V3-FIXED",
+    Key = "ZENITH-PRO-ACTIVE",
     WindowTitle = "99 Noites - Painel Zenith"
 }
-
--- Variáveis para controle do ESP
-local ESP_Settings = {
-    Players = false,
-    Mobs = false,
-    Wood = false,
-    Coal = false
-}
-local ESP_Container = Instance.new("ScreenGui")
-ESP_Container.Name = "ESP_Container"
-ESP_Container.Parent = PlayerGui
-ESP_Container.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 --================================================================================================--
 -- [ API DE UI ZENITH (Biblioteca interna para criar o menu) ]
 --================================================================================================--
 local Zenith = {}
-Zenith.ActiveCategory = nil
 Zenith.Pages = {}
+Zenith.ActiveCategory = nil
 
-function Zenith:CreateWindow(title)
+function Zenith:Initialize()
+    -- Container principal para todo o Mod
+    local ZenithScreenGui = Instance.new("ScreenGui")
+    ZenithScreenGui.Name = "ZenithPanel"
+    ZenithScreenGui.Parent = PlayerGui
+    ZenithScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    ZenithScreenGui.DisplayOrder = 999 -- Garante que fique por cima de tudo
+
     -- Janela Principal
     local MainWindow = Instance.new("Frame")
     MainWindow.Name = "MainWindow"
+    MainWindow.Parent = ZenithScreenGui
     MainWindow.Size = UDim2.new(0, 550, 0, 350)
     MainWindow.Position = UDim2.new(0.5, -275, 0.5, -175)
     MainWindow.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     MainWindow.BorderColor3 = Color3.fromRGB(80, 80, 90)
     MainWindow.Draggable = true
     MainWindow.Active = true
+    MainWindow.Visible = false -- Começa invisível
     Instance.new("UICorner", MainWindow).CornerRadius = UDim.new(0, 6)
 
     -- Cabeçalho
-    local Header = Instance.new("Frame")
+    local Header = Instance.new("Frame", MainWindow)
     Header.Name = "Header"
-    Header.Parent = MainWindow
     Header.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     Header.Size = UDim2.new(1, 0, 0, 30)
-    local HeaderCorner = Instance.new("UICorner", Header)
-    HeaderCorner.CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 6)
 
-    local TitleLabel = Instance.new("TextLabel")
+    local TitleLabel = Instance.new("TextLabel", Header)
     TitleLabel.Name = "TitleLabel"
-    TitleLabel.Parent = Header
     TitleLabel.Size = UDim2.new(1, -10, 1, 0)
     TitleLabel.Position = UDim2.new(0, 5, 0, 0)
-    TitleLabel.Text = title
+    TitleLabel.Text = Config.WindowTitle
     TitleLabel.Font = Enum.Font.SourceSansSemibold
     TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
     TitleLabel.BackgroundTransparency = 1
 
     -- Barra Lateral de Categorias
-    local CategoriesBar = Instance.new("Frame")
+    local CategoriesBar = Instance.new("Frame", MainWindow)
     CategoriesBar.Name = "CategoriesBar"
-    CategoriesBar.Parent = MainWindow
     CategoriesBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     CategoriesBar.Size = UDim2.new(0, 130, 1, -30)
     CategoriesBar.Position = UDim2.new(0, 0, 0, 30)
-    local CategoryLayout = Instance.new("UIListLayout", CategoriesBar)
-    CategoryLayout.Padding = UDim.new(0, 5)
-    CategoryLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    Instance.new("UIListLayout", CategoriesBar).Padding = UDim.new(0, 5)
 
     -- Container de Conteúdo
-    local ContentContainer = Instance.new("Frame")
+    local ContentContainer = Instance.new("Frame", MainWindow)
     ContentContainer.Name = "ContentContainer"
-    ContentContainer.Parent = MainWindow
     ContentContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     ContentContainer.Size = UDim2.new(1, -130, 1, -30)
     ContentContainer.Position = UDim2.new(0, 130, 0, 30)
 
-    -- Adiciona os elementos à tabela da API para referência futura
+    -- Botão 'C' para abrir/fechar
+    local ToggleButton = Instance.new("TextButton", ZenithScreenGui)
+    ToggleButton.Name = "ToggleButton"
+    ToggleButton.Size = UDim2.new(0, 40, 0, 40)
+    ToggleButton.Position = UDim2.new(1, -50, 0, 10)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    ToggleButton.Text = "C"
+    ToggleButton.Font = Enum.Font.SourceSansBold
+    ToggleButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    ToggleButton.Visible = false -- Começa invisível
+    Instance.new("UICorner", ToggleButton).CornerRadius = UDim.new(0, 5)
+
+    -- Guarda as referências na API
+    Zenith.ScreenGui = ZenithScreenGui
     Zenith.MainWindow = MainWindow
     Zenith.CategoriesBar = CategoriesBar
     Zenith.ContentContainer = ContentContainer
-
-    return Zenith
+    Zenith.ToggleButton = ToggleButton
 end
 
 function Zenith:CreateCategory(name)
-    local Page = Instance.new("ScrollingFrame")
+    local Page = Instance.new("ScrollingFrame", Zenith.ContentContainer)
     Page.Name = name .. "_Page"
-    Page.Parent = Zenith.ContentContainer
     Page.Size = UDim2.new(1, 0, 1, 0)
     Page.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     Page.BorderSizePixel = 0
@@ -114,13 +115,11 @@ function Zenith:CreateCategory(name)
     Page.Visible = false
     local PageLayout = Instance.new("UIListLayout", Page)
     PageLayout.Padding = UDim.new(0, 8)
-    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
     PageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     Zenith.Pages[name] = Page
 
-    local CategoryButton = Instance.new("TextButton")
+    local CategoryButton = Instance.new("TextButton", Zenith.CategoriesBar)
     CategoryButton.Name = name
-    CategoryButton.Parent = Zenith.CategoriesBar
     CategoryButton.Size = UDim2.new(1, 0, 0, 35)
     CategoryButton.Text = "  " .. name
     CategoryButton.Font = Enum.Font.SourceSans
@@ -131,13 +130,11 @@ function Zenith:CreateCategory(name)
     CategoryButton.BorderSizePixel = 0
 
     CategoryButton.MouseButton1Click:Connect(function()
-        for i, v in pairs(Zenith.Pages) do
-            v.Visible = false
-        end
-        for i, v in pairs(Zenith.CategoriesBar:GetChildren()) do
-            if v:IsA("TextButton") then
-                v.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-                v.TextColor3 = Color3.fromRGB(200, 200, 200)
+        for _, otherPage in pairs(Zenith.Pages) do otherPage.Visible = false end
+        for _, otherButton in pairs(Zenith.CategoriesBar:GetChildren()) do
+            if otherButton:IsA("TextButton") then
+                otherButton.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+                otherButton.TextColor3 = Color3.fromRGB(200, 200, 200)
             end
         end
         Page.Visible = true
@@ -145,23 +142,17 @@ function Zenith:CreateCategory(name)
         CategoryButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         Zenith.ActiveCategory = Page
     end)
-
-    -- === CORREÇÃO APLICADA AQUI ===
+    
     if not Zenith.ActiveCategory then
-        -- Em vez de :Invoke(), ativamos a primeira categoria manualmente
-        Page.Visible = true
-        CategoryButton.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-        CategoryButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Zenith.ActiveCategory = Page
+        CategoryButton.MouseButton1Click:Fire()
     end
     
     return Page
 end
 
 function Zenith:CreateButton(category, text, callback)
-    local Button = Instance.new("TextButton")
+    local Button = Instance.new("TextButton", category)
     Button.Name = text
-    Button.Parent = category
     Button.Size = UDim2.new(0.9, 0, 0, 40)
     Button.Text = text
     Button.Font = Enum.Font.SourceSansSemibold
@@ -172,9 +163,8 @@ function Zenith:CreateButton(category, text, callback)
 end
 
 function Zenith:CreateToggle(category, text, callback)
-    local ToggleFrame = Instance.new("Frame")
+    local ToggleFrame = Instance.new("Frame", category)
     ToggleFrame.Name = text .. "_Toggle"
-    ToggleFrame.Parent = category
     ToggleFrame.Size = UDim2.new(0.9, 0, 0, 40)
     ToggleFrame.BackgroundTransparency = 1
 
@@ -198,20 +188,14 @@ function Zenith:CreateToggle(category, text, callback)
     local IsOn = false
     Switch.MouseButton1Click:Connect(function()
         IsOn = not IsOn
-        if IsOn then
-            Switch.BackgroundColor3 = Color3.fromRGB(50, 80, 50)
-            Switch.Text = "ON"
-        else
-            Switch.BackgroundColor3 = Color3.fromRGB(80, 50, 50)
-            Switch.Text = "OFF"
-        end
+        Switch.BackgroundColor3 = IsOn and Color3.fromRGB(50, 80, 50) or Color3.fromRGB(80, 50, 50)
+        Switch.Text = IsOn and "ON" or "OFF"
         callback(IsOn)
     end)
 end
 
 function Zenith:CreateLabel(category, text)
-    local Label = Instance.new("TextLabel")
-    Label.Parent = category
+    local Label = Instance.new("TextLabel", category)
     Label.Size = UDim2.new(0.9, 0, 0, 20)
     Label.Text = text
     Label.Font = Enum.Font.SourceSansBold
@@ -223,186 +207,108 @@ end
 --================================================================================================--
 -- [ LÓGICA DO ESP ]
 --================================================================================================--
-local function create_esp_element(parent_obj)
-    local esp_element = {}
-    
-    local box = Instance.new("BoxHandleAdornment")
-    box.Parent = ESP_Container
-    box.Adornee = parent_obj
-    box.AlwaysOnTop = true
-    box.ZIndex = 2
-    box.Size = parent_obj:GetExtentsSize() + Vector3.new(0.5, 0.5, 0.5)
-    box.Color3 = Color3.fromRGB(0, 255, 255)
-    box.Transparency = 0.5
-    
-    local name_label = Instance.new("BillboardGui")
-    name_label.Parent = ESP_Container
-    name_label.Adornee = parent_obj
-    name_label.AlwaysOnTop = true
-    name_label.Size = UDim2.new(0, 150, 0, 30)
-    name_label.StudsOffset = Vector3.new(0, 2, 0)
-    
-    local text = Instance.new("TextLabel", name_label)
-    text.Size = UDim2.new(1, 0, 1, 0)
-    text.Font = Enum.Font.SourceSans
-    text.TextSize = 14
-    text.TextColor3 = Color3.fromRGB(255, 255, 255)
-    text.BackgroundTransparency = 1
-    
-    esp_element.Box = box
-    esp_element.NameLabel = name_label
-    esp_element.NameText = text
-    esp_element.Adornee = parent_obj
-    
-    return esp_element
-end
+local ESP_Settings = { Players = false, Mobs = false, Wood = false, Coal = false }
+local ESP_Container = Instance.new("ScreenGui", PlayerGui)
+ESP_Container.Name = "ESP_Container"
+ESP_Container.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ESP_Container.DisplayOrder = 998
 
 local esp_objects = {}
 
 RunService.RenderStepped:Connect(function()
-    local active_esps = (ESP_Settings.Players or ESP_Settings.Mobs or ESP_Settings.Wood or ESP_Settings.Coal)
-
-    for adornee, esp_element in pairs(esp_objects) do
-        local should_be_visible = false
-        if ESP_Settings.Players and adornee:IsA("Model") and Players:GetPlayerFromCharacter(adornee) then should_be_visible = true end
-        if ESP_Settings.Mobs and adornee:IsA("Model") and adornee.Parent == Workspace:FindFirstChild("Monsters") then should_be_visible = true end
-        if ESP_Settings.Wood and adornee:IsA("Part") and adornee.Name == "Wood" then should_be_visible = true end
-        if ESP_Settings.Coal and adornee:IsA("Part") and adornee.Name == "Coal" then should_be_visible = true end
-        
-        if esp_element.Box.Parent and not should_be_visible then
+    for obj, esp_element in pairs(esp_objects) do
+        if not obj or not obj.Parent then
             esp_element.Box:Destroy()
             esp_element.NameLabel:Destroy()
-            esp_objects[adornee] = nil
-        end
-    end
-
-    if not active_esps then return end
-    
-    local objects_to_draw = {}
-    
-    if ESP_Settings.Players then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character.PrimaryPart then
-                table.insert(objects_to_draw, {obj = player.Character, name = player.Name, color = Color3.fromRGB(255, 50, 50)})
-            end
-        end
-    end
-
-    if ESP_Settings.Mobs then
-        local monsterFolder = Workspace:FindFirstChild("Monsters")
-        if monsterFolder then
-            for _, mob in pairs(monsterFolder:GetChildren()) do
-                if mob:IsA("Model") and mob.PrimaryPart then
-                    table.insert(objects_to_draw, {obj = mob, name = mob.Name, color = Color3.fromRGB(255, 120, 0)})
-                end
-            end
-        end
-    end
-
-    if ESP_Settings.Wood or ESP_Settings.Coal then
-        for _, item in pairs(Workspace:GetDescendants()) do
-            if item:IsA("Part") then
-                 if ESP_Settings.Wood and (item.Name == "Wood" or item.Name == "Tree") then
-                     table.insert(objects_to_draw, {obj = item, name = "Madeira", color = Color3.fromRGB(139, 69, 19)})
-                 end
-                 if ESP_Settings.Coal and item.Name == "Coal" then
-                     table.insert(objects_to_draw, {obj = item, name = "Carvão", color = Color3.fromRGB(80, 80, 80)})
-                 end
-            end
+            esp_objects[obj] = nil
         end
     end
     
-    for _, data in pairs(objects_to_draw) do
-        if not esp_objects[data.obj] then
-            esp_objects[data.obj] = create_esp_element(data.obj)
-            esp_objects[data.obj].NameText.Text = data.name
-            esp_objects[data.obj].Box.Color3 = data.color
+    local objects_to_scan = {}
+    if ESP_Settings.Players then for _,p in pairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then table.insert(objects_to_scan, {p.Character, "Player"}) end end end
+    if ESP_Settings.Mobs and Workspace:FindFirstChild("Monsters") then for _,m in pairs(Workspace.Monsters:GetChildren()) do table.insert(objects_to_scan, {m, "Mob"}) end end end
+    if ESP_Settings.Wood then for _,t in pairs(Workspace:GetChildren()) do if t.Name:match("Tree") then table.insert(objects_to_scan, {t, "Wood"}) end end end
+    if ESP_Settings.Coal then for _,c in pairs(Workspace:GetChildren()) do if c.Name:match("Coal") then table.insert(objects_to_scan, {c, "Coal"}) end end end
+    
+    for _, data in pairs(objects_to_scan) do
+        local obj, type = table.unpack(data)
+        if obj and obj:FindFirstChild("HumanoidRootPart") and not esp_objects[obj] then
+            local adornee = obj.HumanoidRootPart
+            local esp_element = {}
+
+            esp_element.Box = Instance.new("BoxHandleAdornment", ESP_Container)
+            esp_element.Box.Adornee = adornee
+            esp_element.Box.AlwaysOnTop = true
+            esp_element.Box.Size = adornee.Size + Vector3.new(1,2,1)
+            esp_element.Box.Transparency = 0.5
+            
+            esp_element.NameLabel = Instance.new("BillboardGui", ESP_Container)
+            esp_element.NameLabel.Adornee = adornee
+            esp_element.NameLabel.AlwaysOnTop = true
+            esp_element.NameLabel.Size = UDim2.new(0, 150, 0, 30)
+            esp_element.NameLabel.StudsOffset = Vector3.new(0, 3, 0)
+            
+            local text = Instance.new("TextLabel", esp_element.NameLabel)
+            text.Size = UDim2.new(1, 0, 1, 0)
+            text.Font = Enum.Font.SourceSans
+            text.TextSize = 14
+            text.BackgroundTransparency = 1
+
+            if type == "Player" then text.Text, text.TextColor3, esp_element.Box.Color3 = obj.Name, Color3.new(1,1,1), Color3.new(1,0.2,0.2) end
+            if type == "Mob" then text.Text, text.TextColor3, esp_element.Box.Color3 = obj.Name, Color3.new(1,1,1), Color3.new(1,0.5,0) end
+            if type == "Wood" then text.Text, text.TextColor3, esp_element.Box.Color3 = "Madeira", Color3.new(1,1,1), Color3.fromRGB(139, 69, 19) end
+            if type == "Coal" then text.Text, text.TextColor3, esp_element.Box.Color3 = "Carvão", Color3.new(1,1,1), Color3.fromRGB(80, 80, 80) end
+            
+            esp_objects[obj] = esp_element
         end
     end
 end)
 
-
 --================================================================================================--
--- [ INICIALIZAÇÃO DO SCRIPT ]
+-- [ INICIALIZAÇÃO E EVENTOS ]
 --================================================================================================--
-local function Main()
-    -- Criar a UI
-    local MainUI = Zenith:CreateWindow(Config.WindowTitle)
-    
-    local cat_principal = Zenith:CreateCategory("Principal")
-    Zenith:CreateButton(cat_principal, "Modo Deus", function()
-        LocalPlayer.Character.Humanoid.MaxHealth = math.huge; LocalPlayer.Character.Humanoid.Health = math.huge
-    end)
-    Zenith:CreateButton(cat_principal, "Bateria Infinita", function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Flashlight") then
-            LocalPlayer.Character.Flashlight.Battery.Value = 9e9
-        end
-    end)
-    Zenith:CreateButton(cat_principal, "Estamina Infinita", function()
-        if LocalPlayer.PlayerValues and LocalPlayer.PlayerValues:FindFirstChild("Stamina") then
-            LocalPlayer.PlayerValues.Stamina.Value = LocalPlayer.PlayerValues.MaxStamina.Value
-        end
-    end)
-    Zenith:CreateButton(cat_principal, "Aumentar Velocidade (50)", function()
-        LocalPlayer.Character.Humanoid.WalkSpeed = 50
-    end)
-    Zenith:CreateButton(cat_principal, "Resetar Velocidade", function()
-        LocalPlayer.Character.Humanoid.WalkSpeed = 16
-    end)
 
-    local cat_mundo = Zenith:CreateCategory("Mundo")
-    Zenith:CreateButton(cat_mundo, "Vencer a Noite", function()
-        if ReplicatedStorage:FindFirstChild("DefaultRemotes") and ReplicatedStorage.DefaultRemotes:FindFirstChild("NightEvent") then
-            ReplicatedStorage.DefaultRemotes.NightEvent:FireServer("Win")
-        end
-    end)
-    Zenith:CreateButton(cat_mundo, "Teleportar p/ Loja", function()
-        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-16, 5, 21)
-    end)
-    Zenith:CreateButton(cat_mundo, "Teleportar p/ Cabana", function()
-        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(205, 133, -342)
-    end)
+-- 1. Cria a UI principal (mas a mantém invisível)
+Zenith:Initialize()
 
-    local cat_esp = Zenith:CreateCategory("ESP")
-    Zenith:CreateLabel(cat_esp, "Visuals")
-    Zenith:CreateToggle(cat_esp, "ESP de Players", function(state) ESP_Settings.Players = state end)
-    Zenith:CreateToggle(cat_esp, "ESP de Mobs", function(state) ESP_Settings.Mobs = state end)
-    Zenith:CreateLabel(cat_esp, "Recursos")
-    Zenith:CreateToggle(cat_esp, "ESP de Madeira", function(state) ESP_Settings.Wood = state end)
-    Zenith:CreateToggle(cat_esp, "ESP de Carvão", function(state) ESP_Settings.Coal = state end)
+-- 2. Popula a UI com os botões e categorias
+local cat_principal = Zenith:CreateCategory("Principal")
+Zenith:CreateButton(cat_principal, "Modo Deus", function() LocalPlayer.Character.Humanoid.MaxHealth, LocalPlayer.Character.Humanoid.Health = 9e9, 9e9 end)
+Zenith:CreateButton(cat_principal, "Bateria Infinita", function() if LocalPlayer.Character:FindFirstChild("Flashlight") then LocalPlayer.Character.Flashlight.Battery.Value = 9e9 end end)
+Zenith:CreateButton(cat_principal, "Estamina Infinita", function() if LocalPlayer:FindFirstChild("PlayerValues") then LocalPlayer.PlayerValues.Stamina.Value = LocalPlayer.PlayerValues.MaxStamina.Value end end)
+Zenith:CreateButton(cat_principal, "Aumentar Velocidade", function() LocalPlayer.Character.Humanoid.WalkSpeed = 50 end)
+Zenith:CreateButton(cat_principal, "Resetar Velocidade", function() LocalPlayer.Character.Humanoid.WalkSpeed = 16 end)
 
-    -- Adicionar a UI ao PlayerGui e esconder
-    Zenith.MainWindow.Parent = PlayerGui
-    Zenith.MainWindow.Visible = false
+local cat_mundo = Zenith:CreateCategory("Mundo")
+Zenith:CreateButton(cat_mundo, "Vencer a Noite", function() if ReplicatedStorage:FindFirstChild("DefaultRemotes") then ReplicatedStorage.DefaultRemotes.NightEvent:FireServer("Win") end end)
+Zenith:CreateButton(cat_mundo, "Teleportar p/ Loja", function() LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-16, 5, 21) end)
+Zenith:CreateButton(cat_mundo, "Teleportar p/ Cabana", function() LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(205, 133, -342) end)
 
-    -- Criar o botão 'C' para abrir/fechar
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Parent = PlayerGui
-    toggleButton.Size = UDim2.new(0, 40, 0, 40)
-    toggleButton.Position = UDim2.new(1, -50, 0, 10)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-    toggleButton.Text = "C"
-    toggleButton.Font = Enum.Font.SourceSansBold
-    toggleButton.TextColor3 = Color3.fromRGB(220, 220, 220)
-    Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(0, 5)
+local cat_esp = Zenith:CreateCategory("ESP")
+Zenith:CreateToggle(cat_esp, "ESP de Players", function(state) ESP_Settings.Players = state end)
+Zenith:CreateToggle(cat_esp, "ESP de Mobs", function(state) ESP_Settings.Mobs = state end)
+Zenith:CreateToggle(cat_esp, "ESP de Madeira", function(state) ESP_Settings.Wood = state end)
+Zenith:CreateToggle(cat_esp, "ESP de Carvão", function(state) ESP_Settings.Coal = state end)
 
-    local function toggleVisibility()
-        Zenith.MainWindow.Visible = not Zenith.MainWindow.Visible
-    end
-    toggleButton.MouseButton1Click:Connect(toggleVisibility)
-    UserInputService.InputBegan:Connect(function(input, processed)
-        if not processed and input.KeyCode == Enum.KeyCode.C then
-            toggleVisibility()
-        end
-    end)
+-- 3. Define a função para abrir/fechar o menu
+local function toggleMenu()
+    Zenith.MainWindow.Visible = not Zenith.MainWindow.Visible
 end
 
---================================================================================================--
--- [ SISTEMA DE CHAVE E CARREGAMENTO ]
---================================================================================================--
+-- 4. Conecta os eventos de clique e teclado
+Zenith.ToggleButton.MouseButton1Click:Connect(toggleMenu)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.C then
+        toggleMenu()
+    end
+end)
+
+-- 5. Cria a tela de chave por último
 do
     local keyScreen = Instance.new("ScreenGui", PlayerGui)
     keyScreen.Name = "KeyAuthScreen"
+    keyScreen.DisplayOrder = 1000 -- Garante que a chave fique por cima do menu escondido
+
     local frame = Instance.new("Frame", keyScreen)
     frame.Size = UDim2.new(0, 300, 0, 150)
     frame.Position = UDim2.new(0.5, -150, 0.5, -75)
@@ -438,8 +344,8 @@ do
     
     submit.MouseButton1Click:Connect(function()
         if keyBox.Text == Config.Key then
-            keyScreen:Destroy()
-            Main()
+            Zenith.ToggleButton.Visible = true -- Torna o botão "C" visível
+            keyScreen:Destroy() -- Destrói a tela da chave
         else
             submit.Text = "Chave Incorreta!"
             submit.BackgroundColor3 = Color3.fromRGB(120, 50, 50)
