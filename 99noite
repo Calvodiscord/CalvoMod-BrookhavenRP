@@ -1,203 +1,265 @@
 --[[
-    Script: 99 Noites na Floresta - Mod Menu Futurista
-    Criado por: Seu Nome/Apelido
+    Script: 99 Noites na Floresta - Ultimate Mod Menu
+    Versão: 2.0
     Funcionalidades:
-    - Interface futurista
-    - Tela de carregamento
-    - Sistema de chave de acesso
-    - Tecla 'C' para abrir/fechar o menu
+    - Interface Futurista e Elegante
+    - Sistema de Chave de Acesso Aprimorado
+    - Botão 'C' no canto da tela para abrir/fechar
+    - Comandos Funcionais para o jogo
 ]]
 
 -- CONFIGURAÇÕES
-local ChaveCorreta = "A7B3C9D8E2F1"
+local ChaveCorreta = "F8E2D1C7B6A5"
 local TituloDoMenu = "99 Noites na Floresta"
 
--- NÃO MEXA ABAIXO DESTA LINHA A MENOS QUE SAIBA O QUE ESTÁ FAZENDO
-
--- VARIÁVEIS GLOBAIS
+-- SERVIÇOS E VARIÁVEIS DO JOGO
+local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- FUNÇÃO PARA GERAR A INTERFACE
-local function criarInterface()
-    -- Tela de Carregamento
-    local telaDeCarregamento = Instance.new("ScreenGui")
-    telaDeCarregamento.Name = "TelaDeCarregamento"
-    telaDeCarregamento.Parent = PlayerGui
-    telaDeCarregamento.ZIndexBehavior = Enum.ZIndexBehavior.Global
+-- CRIAÇÃO DA INTERFACE PRINCIPAL
+local Library = {}
 
-    local fundoCarregamento = Instance.new("Frame")
-    fundoCarregamento.Name = "Fundo"
-    fundoCarregamento.Parent = telaDeCarregamento
-    fundoCarregamento.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
-    fundoCarregamento.BorderSizePixel = 0
-    fundoCarregamento.Size = UDim2.new(1, 0, 1, 0)
+function Library:CriarInterface()
+    -- TELA DE CARREGAMENTO
+    local loadingScreen = Instance.new("ScreenGui")
+    loadingScreen.Name = "LoadingScreen"
+    loadingScreen.Parent = PlayerGui
+    loadingScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-    local textoCarregando = Instance.new("TextLabel")
-    textoCarregando.Name = "TextoCarregando"
-    textoCarregando.Parent = fundoCarregamento
-    textoCarregando.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    textoCarregando.BackgroundTransparency = 1
-    textoCarregando.Size = UDim2.new(0, 400, 0, 50)
-    textoCarregando.Position = UDim2.new(0.5, -200, 0.5, -25)
-    textoCarregando.Font = Enum.Font.SourceSansBold
-    textoCarregando.Text = "CARREGANDO..."
-    textoCarregando.TextColor3 = Color3.fromRGB(0, 255, 255)
-    textoCarregando.TextScaled = true
+    local background = Instance.new("Frame")
+    background.Parent = loadingScreen
+    background.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+    background.Size = UDim2.new(1, 0, 1, 0)
+
+    local title = Instance.new("TextLabel")
+    title.Parent = background
+    title.BackgroundColor3 = Color3.new(1, 1, 1)
+    title.BackgroundTransparency = 1
+    title.Position = UDim2.new(0.5, -200, 0.5, -50)
+    title.Size = UDim2.new(0, 400, 0, 50)
+    title.Font = Enum.Font.Code
+    title.Text = "INICIANDO SCRIPT..."
+    title.TextColor3 = Color3.fromRGB(0, 255, 255)
+    title.TextScaled = true
+    Instance.new("UICorner", title).CornerRadius = UDim.new(0, 8)
 
     wait(3)
-    telaDeCarregamento:Destroy()
+    loadingScreen:Destroy()
 
-    -- Tela de Chave de Acesso
-    local telaDaChave = Instance.new("ScreenGui")
-    telaDaChave.Name = "TelaDaChave"
-    telaDaChave.Parent = PlayerGui
-    telaDaChave.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    -- TELA DA CHAVE DE ACESSO ELEGANTE
+    local keyAuthScreen = Instance.new("ScreenGui")
+    keyAuthScreen.Name = "KeyAuthScreen"
+    keyAuthScreen.Parent = PlayerGui
+    keyAuthScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-    local frameChave = Instance.new("Frame")
-    frameChave.Name = "FrameChave"
-    frameChave.Parent = telaDaChave
-    frameChave.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    frameChave.BorderColor3 = Color3.fromRGB(0, 255, 255)
-    frameChave.BorderSizePixel = 2
-    frameChave.Size = UDim2.new(0, 400, 0, 200)
-    frameChave.Position = UDim2.new(0.5, -200, 0.5, -100)
-    frameChave.Active = true
-    frameChave.Draggable = true
+    local keyFrame = Instance.new("Frame")
+    keyFrame.Name = "KeyFrame"
+    keyFrame.Parent = keyAuthScreen
+    keyFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+    keyFrame.BorderColor3 = Color3.fromRGB(0, 180, 255)
+    keyFrame.BorderSizePixel = 1
+    keyFrame.Size = UDim2.new(0, 450, 0, 220)
+    keyFrame.Position = UDim2.new(0.5, -225, 0.5, -110)
+    keyFrame.Active = true
+    keyFrame.Draggable = true
+    Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 12)
 
-    local tituloChave = Instance.new("TextLabel")
-    tituloChave.Name = "TituloChave"
-    tituloChave.Parent = frameChave
-    tituloChave.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
-    tituloChave.BackgroundTransparency = 0.5
-    tituloChave.Size = UDim2.new(1, 0, 0, 30)
-    tituloChave.Font = Enum.Font.SourceSansBold
-    tituloChave.Text = "Sistema de Chave"
-    tituloChave.TextColor3 = Color3.fromRGB(0, 255, 255)
-    tituloChave.TextScaled = true
+    local keyTitle = Instance.new("TextLabel")
+    keyTitle.Name = "KeyTitle"
+    keyTitle.Parent = keyFrame
+    keyTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    keyTitle.BackgroundTransparency = 1
+    keyTitle.Size = UDim2.new(1, 0, 0, 40)
+    keyTitle.Position = UDim2.new(0, 0, 0.05, 0)
+    keyTitle.Font = Enum.Font.Code
+    keyTitle.Text = "AUTENTICAÇÃO NECESSÁRIA"
+    keyTitle.TextColor3 = Color3.fromRGB(0, 225, 255)
+    keyTitle.TextSize = 24
 
-    local caixaDeTextoChave = Instance.new("TextBox")
-    caixaDeTextoChave.Name = "CaixaDeTextoChave"
-    caixaDeTextoChave.Parent = frameChave
-    caixaDeTextoChave.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    caixaDeTextoChave.BorderColor3 = Color3.fromRGB(0, 255, 255)
-    caixaDeTextoChave.Position = UDim2.new(0.1, 0, 0.3, 0)
-    caixaDeTextoChave.Size = UDim2.new(0.8, 0, 0, 40)
-    caixaDeTextoChave.Font = Enum.Font.SourceSans
-    caixaDeTextoChave.PlaceholderText = "Insira sua chave aqui"
-    caixaDeTextoChave.TextColor3 = Color3.fromRGB(255, 255, 255)
-    caixaDeTextoChave.TextScaled = true
+    local keyTextBox = Instance.new("TextBox")
+    keyTextBox.Name = "KeyTextBox"
+    keyTextBox.Parent = keyFrame
+    keyTextBox.BackgroundColor3 = Color3.fromRGB(15, 17, 25)
+    keyTextBox.BorderColor3 = Color3.fromRGB(0, 180, 255)
+    keyTextBox.Position = UDim2.new(0.1, 0, 0.4, 0)
+    keyTextBox.Size = UDim2.new(0.8, 0, 0, 50)
+    keyTextBox.Font = Enum.Font.SourceSans
+    keyTextBox.PlaceholderText = "Sua Chave de 12 Dígitos"
+    keyTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyTextBox.TextScaled = true
+    Instance.new("UICorner", keyTextBox).CornerRadius = UDim.new(0, 8)
 
-    local botaoVerificar = Instance.new("TextButton")
-    botaoVerificar.Name = "BotaoVerificar"
-    botaoVerificar.Parent = frameChave
-    botaoVerificar.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
-    botaoVerificar.BorderColor3 = Color3.fromRGB(0, 255, 255)
-    botaoVerificar.Position = UDim2.new(0.3, 0, 0.65, 0)
-    botaoVerificar.Size = UDim2.new(0.4, 0, 0, 40)
-    botaoVerificar.Font = Enum.Font.SourceSansBold
-    botaoVerificar.Text = "Verificar"
-    botaoVerificar.TextColor3 = Color3.fromRGB(255, 255, 255)
-    botaoVerificar.TextScaled = true
+    local verifyButton = Instance.new("TextButton")
+    verifyButton.Name = "VerifyButton"
+    verifyButton.Parent = keyFrame
+    verifyButton.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
+    verifyButton.BorderColor3 = Color3.fromRGB(0, 255, 255)
+    verifyButton.Position = UDim2.new(0.3, 0, 0.75, 0)
+    verifyButton.Size = UDim2.new(0.4, 0, 0, 40)
+    verifyButton.Font = Enum.Font.Code
+    verifyButton.Text = "ENTRAR"
+    verifyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    verifyButton.TextScaled = true
+    Instance.new("UICorner", verifyButton).CornerRadius = UDim.new(0, 8)
 
-    local mensagemErro = Instance.new("TextLabel")
-    mensagemErro.Name = "MensagemErro"
-    mensagemErro.Parent = frameChave
-    mensagemErro.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-    mensagemErro.BackgroundTransparency = 1
-    mensagemErro.Size = UDim2.new(1, 0, 0, 20)
-    mensagemErro.Position = UDim2.new(0, 0, 0.9, 0)
-    mensagemErro.Font = Enum.Font.SourceSansBold
-    mensagemErro.Text = "Chave inválida!"
-    mensagemErro.TextColor3 = Color3.fromRGB(255, 0, 0)
-    mensagemErro.Visible = false
+    local errorMessage = Instance.new("TextLabel")
+    errorMessage.Name = "ErrorMessage"
+    errorMessage.Parent = keyFrame
+    errorMessage.BackgroundTransparency = 1
+    errorMessage.Size = UDim2.new(1, 0, 0, 20)
+    errorMessage.Position = UDim2.new(0, 0, 0.6, 0)
+    errorMessage.Font = Enum.Font.SourceSansBold
+    errorMessage.Text = ""
+    errorMessage.TextColor3 = Color3.fromRGB(255, 50, 50)
+    errorMessage.Visible = false
 
-    -- Mod Menu Principal
-    local modMenu = Instance.new("ScreenGui")
-    modMenu.Name = "ModMenu"
-    modMenu.Enabled = false
-    modMenu.Parent = PlayerGui
-    modMenu.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    -- MOD MENU PRINCIPAL
+    local modMenuScreen = Instance.new("ScreenGui")
+    modMenuScreen.Name = "ModMenu"
+    modMenuScreen.Enabled = false
+    modMenuScreen.Parent = PlayerGui
+    modMenuScreen.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
-    local menuPrincipal = Instance.new("Frame")
-    menuPrincipal.Name = "MenuPrincipal"
-    menuPrincipal.Parent = modMenu
-    menuPrincipal.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    menuPrincipal.BorderColor3 = Color3.fromRGB(0, 255, 255)
-    menuPrincipal.BorderSizePixel = 2
-    menuPrincipal.Size = UDim2.new(0, 500, 0, 300)
-    menuPrincipal.Position = UDim2.new(0.5, -250, 0.5, -150)
-    menuPrincipal.Active = true
-    menuPrincipal.Draggable = true
+    local mainMenu = Instance.new("Frame")
+    mainMenu.Name = "MainMenu"
+    mainMenu.Parent = modMenuScreen
+    mainMenu.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+    mainMenu.BorderColor3 = Color3.fromRGB(0, 180, 255)
+    mainMenu.BorderSizePixel = 1
+    mainMenu.Size = UDim2.new(0, 600, 0, 400)
+    mainMenu.Position = UDim2.new(0.5, -300, 0.5, -200)
+    mainMenu.Active = true
+    mainMenu.Draggable = true
+    Instance.new("UICorner", mainMenu).CornerRadius = UDim.new(0, 12)
 
-    local cabecalho = Instance.new("Frame")
-    cabecalho.Name = "Cabecalho"
-    cabecalho.Parent = menuPrincipal
-    cabecalho.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
-    cabecalho.BackgroundTransparency = 0.5
-    cabecalho.Size = UDim2.new(1, 0, 0, 40)
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Parent = mainMenu
+    header.BackgroundColor3 = Color3.fromRGB(25, 28, 40)
+    header.Size = UDim2.new(1, 0, 0, 40)
+    Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 
-    local titulo = Instance.new("TextLabel")
-    titulo.Name = "Titulo"
-    titulo.Parent = cabecalho
-    titulo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    titulo.BackgroundTransparency = 1
-    titulo.Size = UDim2.new(0.8, 0, 1, 0)
-    titulo.Position = UDim2.new(0.1, 0, 0, 0)
-    titulo.Font = Enum.Font.SourceSansBold
-    titulo.Text = TituloDoMenu
-    titulo.TextColor3 = Color3.fromRGB(0, 255, 255)
-    titulo.TextScaled = true
+    local menuTitle = Instance.new("TextLabel")
+    menuTitle.Name = "MenuTitle"
+    menuTitle.Parent = header
+    menuTitle.BackgroundTransparency = 1
+    menuTitle.Size = UDim2.new(1, 0, 1, 0)
+    menuTitle.Font = Enum.Font.Code
+    menuTitle.Text = TituloDoMenu
+    menuTitle.TextColor3 = Color3.fromRGB(0, 225, 255)
+    menuTitle.TextScaled = true
 
-    local botaoFechar = Instance.new("TextLabel")
-    botaoFechar.Name = "BotaoFechar"
-    botaoFechar.Parent = cabecalho
-    botaoFechar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    botaoFechar.BackgroundTransparency = 1
-    botaoFechar.Size = UDim2.new(0, 30, 0, 30)
-    botaoFechar.Position = UDim2.new(0.9, 0, 0.1, 0)
-    botaoFechar.Font = Enum.Font.SourceSansBold
-    botaoFechar.Text = "C"
-    botaoFechar.TextColor3 = Color3.fromRGB(255, 255, 255)
-    botaoFechar.TextScaled = true
+    -- BOTÃO PARA ABRIR/FECHAR NO CANTO DA TELA
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Parent = PlayerGui
+    toggleButton.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+    toggleButton.BorderColor3 = Color3.fromRGB(0, 180, 255)
+    toggleButton.Size = UDim2.new(0, 40, 0, 40)
+    toggleButton.Position = UDim2.new(1, -50, 0, 10)
+    toggleButton.Font = Enum.Font.Code
+    toggleButton.Text = "C"
+    toggleButton.TextColor3 = Color3.fromRGB(0, 225, 255)
+    toggleButton.TextSize = 24
+    toggleButton.Visible = false
+    Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(0, 8)
 
-    -- Adicione aqui seus botões e funções do mod
-    -- Exemplo de um botão
-    local botaoExemplo = Instance.new("TextButton")
-    botaoExemplo.Name = "BotaoExemplo"
-    botaoExemplo.Parent = menuPrincipal
-    botaoExemplo.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
-    botaoExemplo.BorderColor3 = Color3.fromRGB(0, 255, 255)
-    botaoExemplo.Position = UDim2.new(0.1, 0, 0.2, 0)
-    botaoExemplo.Size = UDim2.new(0.8, 0, 0, 40)
-    botaoExemplo.Font = Enum.Font.SourceSansBold
-    botaoExemplo.Text = "Função de Exemplo"
-    botaoExemplo.TextColor3 = Color3.fromRGB(255, 255, 255)
+    -- ÁREA DE COMANDOS
+    local commandsContainer = Instance.new("ScrollingFrame")
+    commandsContainer.Parent = mainMenu
+    commandsContainer.Size = UDim2.new(0.95, 0, 0.85, 0)
+    commandsContainer.Position = UDim2.new(0.025, 0, 0.12, 0)
+    commandsContainer.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+    commandsContainer.BorderSizePixel = 0
+    commandsContainer.CanvasSize = UDim2.new(0, 0, 2, 0) -- Ajustar se tiver muitos botões
 
-    botaoExemplo.MouseButton1Click:Connect(function()
-        print("Botão de exemplo clicado!")
+    local commandLayout = Instance.new("UIGridLayout")
+    commandLayout.Parent = commandsContainer
+    commandLayout.CellPadding = UDim2.new(0.02, 0, 0.02, 0)
+    commandLayout.CellSize = UDim2.new(0.45, 0, 0, 50)
+    commandLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    -- FUNÇÃO PARA CRIAR BOTÕES DE COMANDO
+    function Library:CreateButton(name, callback)
+        local button = Instance.new("TextButton")
+        button.Name = name
+        button.Parent = commandsContainer
+        button.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
+        button.BorderColor3 = Color3.fromRGB(0, 255, 255)
+        button.Font = Enum.Font.Code
+        button.Text = name
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextScaled = true
+        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+        button.MouseButton1Click:Connect(callback)
+        return button
+    end
+
+    -- COMANDOS DO JOGO
+    Library:CreateButton("Vencer a Noite", function()
+        ReplicatedStorage.DefaultRemotes.NightEvent:FireServer("Win")
     end)
-
-
-    -- LÓGICA DO SCRIPT
-    botaoVerificar.MouseButton1Click:Connect(function()
-        if caixaDeTextoChave.Text == ChaveCorreta then
-            telaDaChave:Destroy()
-            modMenu.Enabled = true
-        else
-            mensagemErro.Visible = true
-            wait(2)
-            mensagemErro.Visible = false
+    
+    Library:CreateButton("Bateria Infinita", function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Flashlight") then
+            LocalPlayer.Character.Flashlight.Battery.Value = 9e9
         end
     end)
 
+    Library:CreateButton("Correr Infinito", function()
+        LocalPlayer.PlayerValues.Stamina.Value = LocalPlayer.PlayerValues.MaxStamina.Value
+    end)
+
+    Library:CreateButton("Modo Deus", function()
+        LocalPlayer.Character.Humanoid.MaxHealth = math.huge
+        LocalPlayer.Character.Humanoid.Health = math.huge
+    end)
+    
+    Library:CreateButton("Aumentar Velocidade", function()
+        LocalPlayer.Character.Humanoid.WalkSpeed = 50
+    end)
+
+    Library:CreateButton("Resetar Velocidade", function()
+        LocalPlayer.Character.Humanoid.WalkSpeed = 16
+    end)
+
+    Library:CreateButton("Teleportar para Loja", function()
+        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(-16, 5, 21)
+    end)
+
+    Library:CreateButton("Teleportar para Cabana", function()
+        LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(205, 133, -342)
+    end)
+
+    -- LÓGICA DO SCRIPT
+    verifyButton.MouseButton1Click:Connect(function()
+        if keyTextBox.Text == ChaveCorreta then
+            keyAuthScreen:Destroy()
+            modMenuScreen.Enabled = false
+            toggleButton.Visible = true
+        else
+            errorMessage.Text = "ERRO: Chave Inválida!"
+            errorMessage.Visible = true
+            wait(2)
+            errorMessage.Visible = false
+        end
+    end)
+    
+    local function toggleMenu()
+        modMenuScreen.Enabled = not modMenuScreen.Enabled
+    end
+
+    toggleButton.MouseButton1Click:Connect(toggleMenu)
     UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
         if gameProcessedEvent then return end
         if input.KeyCode == Enum.KeyCode.C then
-            modMenu.Enabled = not modMenu.Enabled
+            toggleMenu()
         end
     end)
 end
 
--- INICIAR SCRIPT
-criarInterface()
+-- INICIAR O SCRIPT
+Library:CriarInterface()
