@@ -1,0 +1,203 @@
+--[[
+    Script: 99 Noites na Floresta - Mod Menu Futurista
+    Criado por: Seu Nome/Apelido
+    Funcionalidades:
+    - Interface futurista
+    - Tela de carregamento
+    - Sistema de chave de acesso
+    - Tecla 'C' para abrir/fechar o menu
+]]
+
+-- CONFIGURAÇÕES
+local ChaveCorreta = "A7B3C9D8E2F1"
+local TituloDoMenu = "99 Noites na Floresta"
+
+-- NÃO MEXA ABAIXO DESTA LINHA A MENOS QUE SAIBA O QUE ESTÁ FAZENDO
+
+-- VARIÁVEIS GLOBAIS
+local UserInputService = game:GetService("UserInputService")
+local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+
+-- FUNÇÃO PARA GERAR A INTERFACE
+local function criarInterface()
+    -- Tela de Carregamento
+    local telaDeCarregamento = Instance.new("ScreenGui")
+    telaDeCarregamento.Name = "TelaDeCarregamento"
+    telaDeCarregamento.Parent = PlayerGui
+    telaDeCarregamento.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+    local fundoCarregamento = Instance.new("Frame")
+    fundoCarregamento.Name = "Fundo"
+    fundoCarregamento.Parent = telaDeCarregamento
+    fundoCarregamento.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    fundoCarregamento.BorderSizePixel = 0
+    fundoCarregamento.Size = UDim2.new(1, 0, 1, 0)
+
+    local textoCarregando = Instance.new("TextLabel")
+    textoCarregando.Name = "TextoCarregando"
+    textoCarregando.Parent = fundoCarregamento
+    textoCarregando.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    textoCarregando.BackgroundTransparency = 1
+    textoCarregando.Size = UDim2.new(0, 400, 0, 50)
+    textoCarregando.Position = UDim2.new(0.5, -200, 0.5, -25)
+    textoCarregando.Font = Enum.Font.SourceSansBold
+    textoCarregando.Text = "CARREGANDO..."
+    textoCarregando.TextColor3 = Color3.fromRGB(0, 255, 255)
+    textoCarregando.TextScaled = true
+
+    wait(3)
+    telaDeCarregamento:Destroy()
+
+    -- Tela de Chave de Acesso
+    local telaDaChave = Instance.new("ScreenGui")
+    telaDaChave.Name = "TelaDaChave"
+    telaDaChave.Parent = PlayerGui
+    telaDaChave.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+    local frameChave = Instance.new("Frame")
+    frameChave.Name = "FrameChave"
+    frameChave.Parent = telaDaChave
+    frameChave.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    frameChave.BorderColor3 = Color3.fromRGB(0, 255, 255)
+    frameChave.BorderSizePixel = 2
+    frameChave.Size = UDim2.new(0, 400, 0, 200)
+    frameChave.Position = UDim2.new(0.5, -200, 0.5, -100)
+    frameChave.Active = true
+    frameChave.Draggable = true
+
+    local tituloChave = Instance.new("TextLabel")
+    tituloChave.Name = "TituloChave"
+    tituloChave.Parent = frameChave
+    tituloChave.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    tituloChave.BackgroundTransparency = 0.5
+    tituloChave.Size = UDim2.new(1, 0, 0, 30)
+    tituloChave.Font = Enum.Font.SourceSansBold
+    tituloChave.Text = "Sistema de Chave"
+    tituloChave.TextColor3 = Color3.fromRGB(0, 255, 255)
+    tituloChave.TextScaled = true
+
+    local caixaDeTextoChave = Instance.new("TextBox")
+    caixaDeTextoChave.Name = "CaixaDeTextoChave"
+    caixaDeTextoChave.Parent = frameChave
+    caixaDeTextoChave.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    caixaDeTextoChave.BorderColor3 = Color3.fromRGB(0, 255, 255)
+    caixaDeTextoChave.Position = UDim2.new(0.1, 0, 0.3, 0)
+    caixaDeTextoChave.Size = UDim2.new(0.8, 0, 0, 40)
+    caixaDeTextoChave.Font = Enum.Font.SourceSans
+    caixaDeTextoChave.PlaceholderText = "Insira sua chave aqui"
+    caixaDeTextoChave.TextColor3 = Color3.fromRGB(255, 255, 255)
+    caixaDeTextoChave.TextScaled = true
+
+    local botaoVerificar = Instance.new("TextButton")
+    botaoVerificar.Name = "BotaoVerificar"
+    botaoVerificar.Parent = frameChave
+    botaoVerificar.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
+    botaoVerificar.BorderColor3 = Color3.fromRGB(0, 255, 255)
+    botaoVerificar.Position = UDim2.new(0.3, 0, 0.65, 0)
+    botaoVerificar.Size = UDim2.new(0.4, 0, 0, 40)
+    botaoVerificar.Font = Enum.Font.SourceSansBold
+    botaoVerificar.Text = "Verificar"
+    botaoVerificar.TextColor3 = Color3.fromRGB(255, 255, 255)
+    botaoVerificar.TextScaled = true
+
+    local mensagemErro = Instance.new("TextLabel")
+    mensagemErro.Name = "MensagemErro"
+    mensagemErro.Parent = frameChave
+    mensagemErro.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    mensagemErro.BackgroundTransparency = 1
+    mensagemErro.Size = UDim2.new(1, 0, 0, 20)
+    mensagemErro.Position = UDim2.new(0, 0, 0.9, 0)
+    mensagemErro.Font = Enum.Font.SourceSansBold
+    mensagemErro.Text = "Chave inválida!"
+    mensagemErro.TextColor3 = Color3.fromRGB(255, 0, 0)
+    mensagemErro.Visible = false
+
+    -- Mod Menu Principal
+    local modMenu = Instance.new("ScreenGui")
+    modMenu.Name = "ModMenu"
+    modMenu.Enabled = false
+    modMenu.Parent = PlayerGui
+    modMenu.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+    local menuPrincipal = Instance.new("Frame")
+    menuPrincipal.Name = "MenuPrincipal"
+    menuPrincipal.Parent = modMenu
+    menuPrincipal.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    menuPrincipal.BorderColor3 = Color3.fromRGB(0, 255, 255)
+    menuPrincipal.BorderSizePixel = 2
+    menuPrincipal.Size = UDim2.new(0, 500, 0, 300)
+    menuPrincipal.Position = UDim2.new(0.5, -250, 0.5, -150)
+    menuPrincipal.Active = true
+    menuPrincipal.Draggable = true
+
+    local cabecalho = Instance.new("Frame")
+    cabecalho.Name = "Cabecalho"
+    cabecalho.Parent = menuPrincipal
+    cabecalho.BackgroundColor3 = Color3.fromRGB(10, 10, 20)
+    cabecalho.BackgroundTransparency = 0.5
+    cabecalho.Size = UDim2.new(1, 0, 0, 40)
+
+    local titulo = Instance.new("TextLabel")
+    titulo.Name = "Titulo"
+    titulo.Parent = cabecalho
+    titulo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    titulo.BackgroundTransparency = 1
+    titulo.Size = UDim2.new(0.8, 0, 1, 0)
+    titulo.Position = UDim2.new(0.1, 0, 0, 0)
+    titulo.Font = Enum.Font.SourceSansBold
+    titulo.Text = TituloDoMenu
+    titulo.TextColor3 = Color3.fromRGB(0, 255, 255)
+    titulo.TextScaled = true
+
+    local botaoFechar = Instance.new("TextLabel")
+    botaoFechar.Name = "BotaoFechar"
+    botaoFechar.Parent = cabecalho
+    botaoFechar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    botaoFechar.BackgroundTransparency = 1
+    botaoFechar.Size = UDim2.new(0, 30, 0, 30)
+    botaoFechar.Position = UDim2.new(0.9, 0, 0.1, 0)
+    botaoFechar.Font = Enum.Font.SourceSansBold
+    botaoFechar.Text = "C"
+    botaoFechar.TextColor3 = Color3.fromRGB(255, 255, 255)
+    botaoFechar.TextScaled = true
+
+    -- Adicione aqui seus botões e funções do mod
+    -- Exemplo de um botão
+    local botaoExemplo = Instance.new("TextButton")
+    botaoExemplo.Name = "BotaoExemplo"
+    botaoExemplo.Parent = menuPrincipal
+    botaoExemplo.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
+    botaoExemplo.BorderColor3 = Color3.fromRGB(0, 255, 255)
+    botaoExemplo.Position = UDim2.new(0.1, 0, 0.2, 0)
+    botaoExemplo.Size = UDim2.new(0.8, 0, 0, 40)
+    botaoExemplo.Font = Enum.Font.SourceSansBold
+    botaoExemplo.Text = "Função de Exemplo"
+    botaoExemplo.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+    botaoExemplo.MouseButton1Click:Connect(function()
+        print("Botão de exemplo clicado!")
+    end)
+
+
+    -- LÓGICA DO SCRIPT
+    botaoVerificar.MouseButton1Click:Connect(function()
+        if caixaDeTextoChave.Text == ChaveCorreta then
+            telaDaChave:Destroy()
+            modMenu.Enabled = true
+        else
+            mensagemErro.Visible = true
+            wait(2)
+            mensagemErro.Visible = false
+        end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+        if gameProcessedEvent then return end
+        if input.KeyCode == Enum.KeyCode.C then
+            modMenu.Enabled = not modMenu.Enabled
+        end
+    end)
+end
+
+-- INICIAR SCRIPT
+criarInterface()
