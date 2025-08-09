@@ -1,363 +1,316 @@
 --[[
-    Calvo mod - Interface Futurista para Roblox
-    Descrição: Um menu com design profissional, organizado em abas para comandos e gerenciamento de jogadores.
-    Recursos: Noclip, Velocidade, Voo, Teleporte com Clique, Lista de Jogadores, Ações em Jogadores (incluindo copiar skin).
+    Calvo mod Reborn - v1.0
+    Descrição: Interface refeita com design profissional inspirado na imagem de referência.
+    Funcionalidades: Navegação lateral corrigida, toggles animados, e todas as funções anteriores.
 ]]
 
--- SERVIÇOS DO ROBLOX
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
+-- AVISO: Usar este script viola os Termos de Serviço do Roblox e pode resultar em banimento.
+-- ======================================================================================
 
--- JOGADOR LOCAL
+-- SERVIÇOS
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+-- JOGADOR E MOUSE
 local jogadorLocal = Players.LocalPlayer
 local mouse = jogadorLocal:GetMouse()
 
--- CONFIGURAÇÕES DO MOD
+-- DESTRÓI GUI ANTIGA PARA EVITAR DUPLICAÇÃO
+if jogadorLocal and jogadorLocal:FindFirstChild("PlayerGui") and jogadorLocal.PlayerGui:FindFirstChild("CalvoModReborn") then
+    jogadorLocal.PlayerGui.CalvoModReborn:Destroy()
+end
+
+-- CONFIGURAÇÕES DE ESTILO
 local config = {
-    velocidadeAumentada = 120,
-    poderVoo = 150,
-    corPrincipal = Color3.fromRGB(0, 225, 255), -- Azul Ciano Futurista
-    corFundo = Color3.fromRGB(20, 22, 28),
-    corSecundaria = Color3.fromRGB(35, 38, 46),
-    corTexto = Color3.fromRGB(255, 255, 255)
+    corFundo = Color3.fromRGB(30, 32, 37),
+    corSidebar = Color3.fromRGB(25, 26, 30),
+    corHeader = Color3.fromRGB(25, 26, 30),
+    corPrincipal = Color3.fromRGB(90, 120, 255),
+    corTexto = Color3.fromRGB(230, 230, 230),
+    corTextoInativo = Color3.fromRGB(150, 150, 150),
+    fontePrincipal = Enum.Font.GothamSemibold,
+    -- Configurações das funções
+    velocidade = 120,
+    poderVoo = 150
 }
 
 -- VARIÁVEIS DE ESTADO
-local estados = {
-    noclip = false,
-    velocidade = false,
-    voo = false,
-    clickTeleport = false
-}
+local estados = { noclip = false, velocidade = false, voo = false, clickTeleport = false }
 local vooCorrendo = nil
 
--- DESTRÓI QUALQUER GUI ANTIGA PARA EVITAR DUPLICAÇÃO
-if jogadorLocal.PlayerGui:FindFirstChild("CalvoModGui") then
-    jogadorLocal.PlayerGui.CalvoModGui:Destroy()
-end
-
 -- CRIAÇÃO DA INTERFACE (GUI)
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CalvoModGui"
-screenGui.Parent = jogadorLocal:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui", jogadorLocal:WaitForChild("PlayerGui"))
+screenGui.Name = "CalvoModReborn"
 screenGui.ResetOnSpawn = false
 
--- JANELA PRINCIPAL
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Parent = screenGui
+-- JANELA PRINCIPAL (FRAME)
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 500, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -160)
 mainFrame.BackgroundColor3 = config.corFundo
-mainFrame.Position = UDim2.new(0.5, -200, 0.5, -200)
-mainFrame.Size = UDim2.new(0, 400, 0, 400)
 mainFrame.Active = true
 mainFrame.Draggable = true
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
-local mainStroke = Instance.new("UIStroke", mainFrame)
-mainStroke.Color = config.corPrincipal
-mainStroke.Thickness = 1.5
-mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- BARRA DE TÍTULO
-local titleBar = Instance.new("Frame")
-titleBar.Name = "TitleBar"
-titleBar.Parent = mainFrame
-titleBar.BackgroundColor3 = config.corSecundaria
-titleBar.Size = UDim2.new(1, 0, 0, 35)
-titleBar.BackgroundTransparency = 0.5
-local titleCorner = Instance.new("UICorner", titleBar)
-titleCorner.CornerRadius = UDim.new(0, 8)
+-- BARRA LATERAL DE NAVEGAÇÃO
+local sideBar = Instance.new("Frame", mainFrame)
+sideBar.Size = UDim2.new(0, 120, 1, 0)
+sideBar.BackgroundColor3 = config.corSidebar
+local sbCorner = Instance.new("UICorner", sideBar)
+sbCorner.CornerRadius = UDim.new(0, 8)
+local sbLayout = Instance.new("UIListLayout", sideBar)
+sbLayout.Padding = UDim.new(0, 10)
+sbLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sbLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Parent = titleBar
-titleLabel.Size = UDim2.new(1, 0, 1, 0)
-titleLabel.BackgroundColor3 = Color3.new()
-titleLabel.BackgroundTransparency = 1
-titleLabel.Font = Enum.Font.Code
-titleLabel.TextColor3 = config.corPrincipal
-titleLabel.Text = "Calvo mod"
-titleLabel.TextSize = 20
-
--- BOTÃO DE FECHAR
-local closeButton = Instance.new("TextButton")
-closeButton.Parent = titleBar
-closeButton.Size = UDim2.new(0, 25, 0, 25)
-closeButton.Position = UDim2.new(1, -30, 0.5, -12.5)
-closeButton.BackgroundColor3 = config.corFundo
-closeButton.Text = "X"
-closeButton.Font = Enum.Font.Code
-closeButton.TextColor3 = config.corTexto
-closeButton.TextSize = 16
-Instance.new("UICorner", closeButton).CornerRadius = UDim.new(0, 4)
-closeButton.MouseButton1Click:Connect(function() screenGui:Destroy() end)
-
--- CONTAINER DAS ABAS
-local tabsContainer = Instance.new("Frame")
-tabsContainer.Parent = mainFrame
-tabsContainer.Size = UDim2.new(1, 0, 0, 40)
-tabsContainer.Position = UDim2.new(0, 0, 0, 35)
-tabsContainer.BackgroundTransparency = 1
-
--- CONTAINER DE CONTEÚDO
-local contentContainer = Instance.new("Frame")
-contentContainer.Parent = mainFrame
-contentContainer.Size = UDim2.new(1, -10, 1, -80)
-contentContainer.Position = UDim2.new(0, 5, 0, 75)
+-- CONTAINER DO CONTEÚDO (PAINEL DIREITO)
+local contentContainer = Instance.new("Frame", mainFrame)
+contentContainer.Size = UDim2.new(1, -130, 1, -10)
+contentContainer.Position = UDim2.new(0, 125, 0, 5)
 contentContainer.BackgroundTransparency = 1
 
--- PÁGINAS (ABAS)
-local commandsPage = Instance.new("Frame")
-commandsPage.Name = "CommandsPage"
-commandsPage.Parent = contentContainer
+-- PÁGINAS (CONTEÚDOS DAS ABAS)
+local commandsPage = Instance.new("Frame", contentContainer)
 commandsPage.Size = UDim2.new(1, 0, 1, 0)
 commandsPage.BackgroundTransparency = 1
 commandsPage.Visible = true
-local commandsLayout = Instance.new("UIListLayout", commandsPage)
-commandsLayout.Padding = UDim.new(0, 8)
+local cmdLayout = Instance.new("UIGridLayout", commandsPage)
+cmdLayout.CellPadding = UDim2.new(0, 10, 0, 10)
+cmdLayout.CellSize = UDim2.new(0.5, -5, 0, 50)
 
-local playersPage = Instance.new("ScrollingFrame")
-playersPage.Name = "PlayersPage"
-playersPage.Parent = contentContainer
+local playersPage = Instance.new("ScrollingFrame", contentContainer)
 playersPage.Size = UDim2.new(1, 0, 1, 0)
 playersPage.BackgroundTransparency = 1
-playersPage.BackgroundColor3 = config.corSecundaria
-playersPage.BorderSizePixel = 0
 playersPage.Visible = false
-playersPage.CanvasSize = UDim2.new(0,0,0,0)
-playersPage.ScrollBarThickness = 6
-playersPage.ScrollBarImageColor3 = config.corPrincipal
+playersPage.BackgroundColor3 = config.corSidebar
+playersPage.BorderSizePixel = 0
 Instance.new("UICorner", playersPage).CornerRadius = UDim.new(0, 6)
-local playersLayout = Instance.new("UIListLayout", playersPage)
-playersLayout.Padding = UDim.new(0, 5)
-playersLayout.SortOrder = Enum.SortOrder.Name
+playersPage.ScrollBarThickness = 5
+playersPage.ScrollBarImageColor3 = config.corPrincipal
+local plyLayout = Instance.new("UIListLayout", playersPage)
+plyLayout.Padding = UDim.new(0, 5)
+plyLayout.SortOrder = Enum.SortOrder.Name
 
--- BOTÕES DAS ABAS
-local function createTabButton(text, pageToShow)
-    local button = Instance.new("TextButton")
-    button.Parent = tabsContainer
-    button.Text = text
-    button.Font = Enum.Font.Code
-    button.TextSize = 16
-    button.TextColor3 = config.corTexto
-    button.BackgroundColor3 = config.corSecundaria
-    button.BackgroundTransparency = 0.5
-    button.Size = UDim2.new(0.5, -2.5, 1, 0)
-    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
-    local stroke = Instance.new("UIStroke", button)
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Thickness = 1
-    stroke.Color = config.corSecundaria
+-- TÍTULO NA SIDEBAR
+local titleLabel = Instance.new("TextLabel", sideBar)
+titleLabel.Size = UDim2.new(1, -10, 0, 50)
+titleLabel.Text = "Calvo mod"
+titleLabel.TextColor3 = config.corTexto
+titleLabel.Font = config.fontePrincipal
+titleLabel.TextSize = 20
+titleLabel.BackgroundTransparency = 1
+titleLabel.LayoutOrder = 0
+
+-- FUNÇÃO PARA CRIAR BOTÕES DA SIDEBAR
+local activeTab = nil
+local function createSideBarButton(text, icon, pageToShow, order)
+    local button = Instance.new("TextButton", sideBar)
+    button.Size = UDim2.new(1, -10, 0, 40)
+    button.BackgroundColor3 = Color3.new()
+    button.BackgroundTransparency = 1
+    button.LayoutOrder = order
+    
+    local indicator = Instance.new("Frame", button)
+    indicator.Size = UDim2.new(0, 4, 1, 0)
+    indicator.BackgroundColor3 = config.corPrincipal
+    indicator.BackgroundTransparency = 1 -- Inicia invisível
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(1, 0)
+
+    local iconLabel = Instance.new("ImageLabel", button)
+    iconLabel.Size = UDim2.new(0, 24, 0, 24)
+    iconLabel.Position = UDim2.new(0, 10, 0.5, -12)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Image = "rbxassetid://" .. icon
+    iconLabel.ImageColor3 = config.corTextoInativo
+    
+    local textLabel = Instance.new("TextLabel", button)
+    textLabel.Size = UDim2.new(1, -40, 1, 0)
+    textLabel.Position = UDim2.new(0, 40, 0, 0)
+    textLabel.Text = text
+    textLabel.TextColor3 = config.corTextoInativo
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+    textLabel.Font = config.fontePrincipal
+    textLabel.TextSize = 16
+    textLabel.BackgroundTransparency = 1
     
     button.MouseButton1Click:Connect(function()
-        for _, child in ipairs(contentContainer:GetChildren()) do
-            child.Visible = false
+        -- Esconde todas as páginas
+        for _, page in ipairs(contentContainer:GetChildren()) do
+            if page:IsA("GuiObject") then page.Visible = false end
         end
+        -- Mostra a página alvo
         pageToShow.Visible = true
         
-        for _, btn in ipairs(tabsContainer:GetChildren()) do
-            if btn:IsA("TextButton") then
-                btn.BackgroundTransparency = 0.5
-                btn:FindFirstChildOfClass("UIStroke").Color = config.corSecundaria
-            end
+        -- Atualiza o estado visual do botão antigo
+        if activeTab then
+            activeTab.Indicator.BackgroundTransparency = 1
+            activeTab.Icon.ImageColor3 = config.corTextoInativo
+            activeTab.Label.TextColor3 = config.corTextoInativo
         end
         
-        button.BackgroundTransparency = 0
-        stroke.Color = config.corPrincipal
-    end)
-    return button
-end
-
-local commandsTab = createTabButton("Comandos", commandsPage)
-local playersTab = createTabButton("Players", playersPage)
-playersTab.Position = UDim2.new(0.5, 2.5, 0, 0)
-
--- Simula o clique inicial para definir a aba padrão
-commandsTab.MouseButton1Click:Invoke()
-
--- FUNÇÃO PARA CRIAR BOTÕES DE AÇÃO (TOGGLE)
-local function createToggleButton(text, page, callback)
-    local button = Instance.new("TextButton")
-    button.Parent = page
-    button.Size = UDim2.new(1, 0, 0, 35)
-    button.BackgroundColor3 = config.corSecundaria
-    button.Font = Enum.Font.Code
-    button.TextSize = 16
-    button.Text = text .. " [OFF]"
-    button.TextColor3 = config.corTexto
-    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
-    
-    button.MouseButton1Click:Connect(function()
-        local newState = callback()
-        button.Text = text .. " [" .. (newState and "ON" or "OFF") .. "]"
-        button.TextColor3 = newState and config.corPrincipal or config.corTexto
-    end)
-end
-
--- ### ABA DE COMANDOS ###
-createToggleButton("No Clip", commandsPage, function()
-    estados.noclip = not estados.noclip
-    return estados.noclip
-end)
-
-createToggleButton("Velocidade", commandsPage, function()
-    estados.velocidade = not estados.velocidade
-    local char = jogadorLocal.Character
-    if char and char:FindFirstChild("Humanoid") then
-        char.Humanoid.WalkSpeed = estados.velocidade and config.velocidadeAumentada or 16
-    end
-    return estados.velocidade
-end)
-
-createToggleButton("Voar", commandsPage, function()
-    estados.voo = not estados.voo
-    if not estados.voo and vooCorrendo then
-        vooCorrendo:Disconnect()
-        vooCorrendo = nil
-    end
-    return estados.voo
-end)
-
-createToggleButton("Teleporte com Clique", commandsPage, function()
-    estados.clickTeleport = not estados.clickTeleport
-    return estados.clickTeleport
-end)
-
--- ### ABA DE PLAYERS ###
-local playerActionFrame = nil
-
-local function copiarSkin(targetPlayer)
-    pcall(function()
-        local localChar = jogadorLocal.Character
-        if not localChar then return end
+        -- Atualiza o estado visual do novo botão ativo
+        indicator.BackgroundTransparency = 0
+        iconLabel.ImageColor3 = config.corTexto
+        textLabel.TextColor3 = config.corTexto
         
-        local description = Players:GetHumanoidDescriptionFromUserId(targetPlayer.UserId)
-        localChar.Humanoid:ApplyDescription(description)
+        -- Armazena o botão ativo
+        activeTab = {Button = button, Indicator = indicator, Icon = iconLabel, Label = textLabel}
+    end)
+    
+    return button, {Button = button, Indicator = indicator, Icon = iconLabel, Label = textLabel}
+end
+
+-- FUNÇÃO PARA CRIAR TOGGLE SWITCH ANIMADO
+local function createToggle(text, callback)
+    local container = Instance.new("Frame", commandsPage)
+    container.Size = UDim2.new(0, 0, 0, 0) -- Tamanho definido pelo UIGridLayout
+    container.BackgroundTransparency = 1
+    
+    local textLabel = Instance.new("TextLabel", container)
+    textLabel.Size = UDim2.new(1, 0, 0, 20)
+    textLabel.Text = text
+    textLabel.Font = config.fontePrincipal
+    textLabel.TextSize = 14
+    textLabel.TextColor3 = config.corTexto
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local switch = Instance.new("TextButton", container)
+    switch.Size = UDim2.new(0, 44, 0, 24)
+    switch.Position = UDim2.new(0, 0, 0, 22)
+    switch.Text = ""
+    switch.BackgroundColor3 = config.corSidebar
+    Instance.new("UICorner", switch).CornerRadius = UDim.new(1, 0)
+    
+    local knob = Instance.new("Frame", switch)
+    knob.Size = UDim2.new(0, 20, 0, 20)
+    knob.Position = UDim2.new(0, 2, 0.5, -10)
+    knob.BackgroundColor3 = config.corTexto
+    knob.BorderSizePixel = 0
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    
+    local isOn = false
+    switch.MouseButton1Click:Connect(function()
+        isOn = not isOn
+        callback(isOn) -- Chama a função lógica
+        
+        local goalPos = isOn and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+        local goalColor = isOn and config.corPrincipal or config.corSidebar
+        
+        TweenService:Create(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Position = goalPos}):Play()
+        TweenService:Create(switch, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundColor3 = goalColor}):Play()
     end)
 end
 
-local function criarMenuDeAcoes(player)
-    if playerActionFrame then playerActionFrame:Destroy() end
+-- ADICIONAR BOTÕES E OPÇÕES
+local cmdBtn, cmdTab = createSideBarButton("Comandos", "6032422201", commandsPage, 1) -- Ícone de controle
+local plyBtn, plyTab = createSideBarButton("Players", "6073402414", playersPage, 2) -- Ícone de usuário
+
+createToggle("No Clip", function(state) estados.noclip = state end)
+createToggle("Velocidade", function(state) estados.velocidade = state end)
+createToggle("Voar", function(state) estados.voo = state end)
+createToggle("Teleporte/Clique", function(state) estados.clickTeleport = state end)
+
+-- Ativar a primeira aba por padrão
+cmdBtn.MouseButton1Click:Invoke()
+
+-- LÓGICA DO PAINEL DE PLAYERS
+local playerActionFrame = nil
+local function criarMenuDeAcoes(player, playerButton)
+    if playerActionFrame and playerActionFrame.Parent then playerActionFrame:Destroy() end
     
-    playerActionFrame = Instance.new("Frame")
-    playerActionFrame.Parent = mainFrame
-    playerActionFrame.BackgroundColor3 = config.corFundo
+    playerActionFrame = Instance.new("Frame", screenGui)
+    playerActionFrame.BackgroundColor3 = config.corSidebar
     playerActionFrame.Size = UDim2.new(0, 150, 0, 220)
-    playerActionFrame.Position = UDim2.new(0, mainFrame.AbsoluteSize.X + 5, 0, 0)
+    playerActionFrame.Position = UDim2.new(0, mainFrame.AbsolutePosition.X + mainFrame.AbsoluteSize.X + 10, 0, playerButton.AbsolutePosition.Y)
     Instance.new("UICorner", playerActionFrame).CornerRadius = UDim.new(0, 6)
-    local actionStroke = Instance.new("UIStroke", playerActionFrame)
-    actionStroke.Color = config.corPrincipal
-    actionStroke.Thickness = 1
-    
     local actionLayout = Instance.new("UIListLayout", playerActionFrame)
     actionLayout.Padding = UDim.new(0, 5)
     actionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    actionLayout.VerticalAlignment = Enum.VerticalAlignment.Center
     
     local function createActionButton(text, callback)
-        local button = Instance.new("TextButton")
-        button.Parent = playerActionFrame
+        local button = Instance.new("TextButton", playerActionFrame)
         button.Size = UDim2.new(1, -10, 0, 30)
-        button.BackgroundColor3 = config.corSecundaria
+        button.BackgroundColor3 = config.corFundo
         button.Text = text
         button.TextColor3 = config.corTexto
-        button.Font = Enum.Font.Code
+        button.Font = config.fontePrincipal
         button.TextSize = 14
         Instance.new("UICorner", button).CornerRadius = UDim.new(0, 4)
         button.MouseButton1Click:Connect(function()
             callback()
-            playerActionFrame:Destroy()
+            if playerActionFrame and playerActionFrame.Parent then playerActionFrame:Destroy() end
         end)
     end
-
-    createActionButton("Teleportar", function()
-        local alvo = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if alvo then jogadorLocal.Character.HumanoidRootPart.CFrame = alvo.CFrame end
-    end)
-    createActionButton("Trazer", function()
-        local alvo = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if alvo then alvo.CFrame = jogadorLocal.Character.HumanoidRootPart.CFrame end
-    end)
-    createActionButton("Copiar Skin", function() copiarSkin(player) end)
-    createActionButton("Explodir", function()
-        if player.Character then Instance.new("Explosion", workspace).Position = player.Character.HumanoidRootPart.Position end
-    end)
-    createActionButton("Matar", function() if player.Character then player.Character.Humanoid.Health = 0 end end)
-    createActionButton("Kick", function() player:Kick("Você foi ejetado pelo Calvo mod.") end)
+    
+    local alvoChar = player.Character
+    createActionButton("Teleportar", function() if alvoChar and alvoChar.PrimaryPart then jogadorLocal.Character.PrimaryPart.CFrame = alvoChar.PrimaryPart.CFrame end end)
+    createActionButton("Trazer", function() if alvoChar and alvoChar.PrimaryPart then alvoChar.PrimaryPart.CFrame = jogadorLocal.Character.PrimaryPart.CFrame end end)
+    createActionButton("Copiar Skin", function() pcall(function() jogadorLocal.Character.Humanoid:ApplyDescription(Players:GetHumanoidDescriptionFromUserId(player.UserId)) end) end)
+    createActionButton("Explodir", function() if alvoChar and alvoChar.PrimaryPart then local e=Instance.new("Explosion", workspace) e.Position = alvoChar.PrimaryPart.Position end end)
+    createActionButton("Matar", function() if alvoChar and alvoChar.Humanoid then alvoChar.Humanoid.Health = 0 end end)
+    createActionButton("Kick", function() player:Kick("Ejetado pelo Calvo mod.") end)
 end
 
 function atualizarListaJogadores()
-    for _, child in ipairs(playersPage:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
+    for _, item in ipairs(playersPage:GetChildren()) do
+        if item:IsA("TextButton") then item:Destroy() end
     end
     
-    local canvasY = 0
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= jogadorLocal then
-            local playerButton = Instance.new("TextButton")
+            local playerButton = Instance.new("TextButton", playersPage)
             playerButton.Name = player.Name
-            playerButton.Parent = playersPage
-            playerButton.BackgroundColor3 = config.corSecundaria
             playerButton.Size = UDim2.new(1, -10, 0, 30)
-            playerButton.Text = player.Name
+            playerButton.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+            playerButton.Font = config.fontePrincipal
+            playerButton.TextSize = 14
             playerButton.TextColor3 = config.corTexto
-            playerButton.Font = Enum.Font.SourceSans
-            playerButton.TextSize = 16
+            playerButton.BackgroundColor3 = config.corFundo
             Instance.new("UICorner", playerButton).CornerRadius = UDim.new(0, 4)
-            
-            canvasY = canvasY + 35
-            
-            playerButton.MouseButton1Click:Connect(function() criarMenuDeAcoes(player) end)
+            playerButton.MouseButton1Click:Connect(function() criarMenuDeAcoes(player, playerButton) end)
         end
     end
-    playersPage.CanvasSize = UDim2.new(0, 0, 0, canvasY)
 end
-
 Players.PlayerAdded:Connect(atualizarListaJogadores)
 Players.PlayerRemoving:Connect(atualizarListaJogadores)
 atualizarListaJogadores()
 
--- ### LÓGICA PRINCIPAL (EXECUTADA EM LOOP) ###
-RunService.RenderStepped:Connect(function()
+-- LÓGICA DE FUNDO (EXECUTADA EM LOOP)
+RunService.Stepped:Connect(function()
     local char = jogadorLocal.Character
     if not char then return end
-    
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
     if estados.noclip then
         for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.CanCollide then
-                part.CanCollide = false
-            end
+            if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
         end
     end
     
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return end
+    humanoid.WalkSpeed = estados.velocidade and config.velocidade or 16
     
     if estados.voo then
         humanoid.PlatformStand = true
-        if vooCorrendo == nil then
+        if not vooCorrendo then
             vooCorrendo = UserInputService.InputBegan:Connect(function(input, gpe)
-                if gpe then return end
-                if estados.voo and char and char:FindFirstChild("HumanoidRootPart") then
-                    if input.KeyCode == Enum.KeyCode.W then
-                        char.HumanoidRootPart.Velocity = mouse.UnitRay.Direction * config.poderVoo
-                    elseif input.KeyCode == Enum.KeyCode.S then
-                        char.HumanoidRootPart.Velocity = -mouse.UnitRay.Direction * config.poderVoo
-                    end
-                end
+                if gpe or not estados.voo or not char.PrimaryPart then return end
+                if input.KeyCode == Enum.KeyCode.W then char.PrimaryPart.Velocity = mouse.UnitRay.Direction * config.poderVoo end
+                if input.KeyCode == Enum.KeyCode.S then char.PrimaryPart.Velocity = -mouse.UnitRay.Direction * config.poderVoo end
             end)
         end
     elseif humanoid.PlatformStand then
         humanoid.PlatformStand = false
+        if vooCorrendo then vooCorrendo:Disconnect(); vooCorrendo = nil end
     end
 end)
 
 mouse.Button1Down:Connect(function()
-    if estados.clickTeleport and jogadorLocal.Character and mouse.Target then
-        jogadorLocal.Character.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.p + Vector3.new(0, 3, 0))
-    end
-    
-    -- Fechar menu de ação ao clicar fora
-    if playerActionFrame and not mouse.Target:IsDescendantOf(playerActionFrame) and not mouse.Target:IsDescendantOf(playersPage) then
-        playerActionFrame:Destroy()
+    if estados.clickTeleport and jogadorLocal.Character and jogadorLocal.Character.PrimaryPart and mouse.Target then
+        jogadorLocal.Character.PrimaryPart.CFrame = mouse.Hit + Vector3.new(0, 3, 0)
     end
 end)
