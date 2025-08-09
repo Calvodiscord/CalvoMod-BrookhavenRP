@@ -1,91 +1,215 @@
 --[[
-    SCRIPT: Painel CALVO MOD (Versão Corrigida)
-    DESCRIÇÃO: Cria uma interface de mod totalmente funcional no Roblox,
-    gerada e controlada por este único script.
+    SCRIPT: Painel CALVO MOD (Versão Funcional Avançada)
+    DESCRIÇÃO: Implementa funcionalidades de mod e um menu de contexto para interação com jogadores.
     AUTOR: [Seu Nome/Pseudônimo Aqui]
-    VERSÃO: 1.1 - Corrigido erro de Enum.Font inválido.
+    VERSÃO: 2.0
 
     INSTRUÇÕES:
-    1. Crie um 'LocalScript' em 'StarterPlayer.StarterPlayerScripts'.
-    2. Copie e cole todo este código no 'LocalScript'.
-    3. Execute o jogo. O painel aparecerá automaticamente.
+    1. Insira em um 'LocalScript' dentro de 'StarterPlayer.StarterPlayerScripts'.
+    2. O script funcionará em executores como o Delta, que permitem certas funções de cliente-servidor.
 --]]
 
 --======= SERVIÇOS E VARIÁVEIS GLOBAIS =======--
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
+local camera = workspace.CurrentCamera
 
--- Estado das funcionalidades (semelhante ao featureStates em JS)
-local featureStates = {
-    teleport = false,
-    godmode = false,
-    fly = false,
-    noclip = false,
-}
+-- Variáveis para controle do personagem (serão definidas quando o personagem carregar)
+local character
+local humanoid
+local rootPart
 
---======= CRIAÇÃO DA INTERFACE (GUI) =======--
+-- Variáveis para controle de estado das funções
+local isFlying = false
+local flyConnection
+local noclipConnection
+local originalWalkSpeed = 16
+local originalMaxHealth = 100
 
--- 1. ScreenGui Principal
+-- Armazena o alvo para o menu de contexto
+local currentPlayerTarget = nil
+
+--======= FUNÇÕES DE MOD (A LÓGICA DAS OPÇÕES) =======--
+
+local function getCharacter()
+    if not localPlayer.Character or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        character = nil
+        humanoid = nil
+        rootPart = nil
+        return false
+    end
+    character = localPlayer.Character
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    return true
+end
+
+-- Roda a função sempre que o personagem for (re)criado
+localPlayer.CharacterAdded:Connect(function()
+    getCharacter()
+    -- Re-aplicar estados se o jogador morrer e renascer
+    humanoid.WalkSpeed = originalWalkSpeed -- Reseta a velocidade
+    humanoid.MaxHealth = originalMaxHealth -- Reseta a vida
+end)
+getCharacter() -- Primeira chamada
+
+-- MODO DEUS
+local function setGodMode(enabled)
+    if getCharacter() then
+        if enabled then
+            humanoid.MaxHealth = math.huge
+            humanoid.Health = humanoid.MaxHealth
+            print("Modo Deus ativado.")
+        else
+            humanoid.MaxHealth = originalMaxHealth
+            humanoid.Health = humanoid.MaxHealth
+            print("Modo Deus desativado.")
+        end
+    end
+end
+
+-- VELOCIDADE
+local function setSpeed(speed)
+    if getCharacter() then
+        originalWalkSpeed = speed -- Salva a nova velocidade para que não seja resetada
+        humanoid.WalkSpeed = speed
+    end
+end
+
+-- NOCLIP
+local function setNoclip(enabled)
+    if getCharacter() then
+        if enabled then
+            noclipConnection = RunService.Stepped:Connect(function()
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end)
+            print("Noclip ativado.")
+        else
+            if noclipConnection then
+                noclipConnection:Disconnect()
+                noclipConnection = nil
+                -- A colisão é resetada automaticamente pelo Roblox quando o estado do humanoide muda
+                print("Noclip desativado.")
+            end
+        end
+    end
+end
+
+-- VOO
+local function setFly(enabled)
+    if not getCharacter() then return end
+
+    if enabled then
+        isFlying = true
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.P = 9e4
+        bodyGyro.Parent = rootPart
+        bodyGyro.CFrame = rootPart.CFrame
+
+        local bodyVel = Instance.new("BodyVelocity")
+        bodyVel.P = 9e4
+        bodyVel.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bodyVel.Velocity = Vector3.new(0, 0, 0)
+        bodyVel.Parent = rootPart
+
+        flyConnection = RunService.Heartbeat:Connect(function()
+            local flySpeed = 50
+            local direction = Vector3.new(0,0,0)
+
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction = direction + Vector3.new(0,1,0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then direction = direction - Vector3.new(0,1,0) end
+
+            bodyGyro.CFrame = camera.CFrame
+            if direction.Magnitude > 0 then
+                bodyVel.Velocity = direction.Unit * flySpeed
+            else
+                bodyVel.Velocity = Vector3.new(0,0,0)
+            end
+        end)
+        print("Voo ativado.")
+    else
+        isFlying = false
+        if flyConnection then
+            flyConnection:Disconnect()
+            flyConnection = nil
+        end
+        if rootPart and rootPart:FindFirstChild("BodyGyro") then rootPart.BodyGyro:Destroy() end
+        if rootPart and rootPart:FindFirstChild("BodyVelocity") then rootPart.BodyVelocity:Destroy() end
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        print("Voo desativado.")
+    end
+end
+
+
+--======= CRIAÇÃO DA INTERFACE (GUI) - (Sem grandes alterações, apenas adicionando o slider) =======--
+
+-- 1. ScreenGui Principal e Painel
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CalvoModScreenGui"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- 2. Painel Principal (ModPanel)
 local modPanel = Instance.new("Frame")
 modPanel.Name = "ModPanel"
-modPanel.Size = UDim2.new(0, 650, 0, 350) -- Tamanho retangular
+modPanel.Size = UDim2.new(0, 650, 0, 420) -- Aumentei a altura para o slider
 modPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
 modPanel.AnchorPoint = Vector2.new(0.5, 0.5)
 modPanel.BackgroundColor3 = Color3.fromRGB(26, 26, 26)
 modPanel.BackgroundTransparency = 0.3
 modPanel.ClipsDescendants = true
 modPanel.Parent = screenGui
+Instance.new("UICorner", modPanel).CornerRadius = UDim.new(0, 12)
+Instance.new("UIStroke", modPanel).Transparency = 0.9
 
-local uiCornerPanel = Instance.new("UICorner")
-uiCornerPanel.CornerRadius = UDim.new(0, 12)
-uiCornerPanel.Parent = modPanel
+-- ... (O código de criação da barra de título, sidebar, etc., permanece o mesmo)
+-- Por questão de espaço, vou omitir a parte da GUI que não mudou.
+-- Copie a seção "CRIAÇÃO DA INTERFACE" do script anterior e cole aqui,
+-- ou use o código abaixo que já contém o slider de velocidade.
 
-local uiStrokePanel = Instance.new("UIStroke")
-uiStrokePanel.Color = Color3.fromRGB(255, 255, 255)
-uiStrokePanel.Transparency = 0.9
-uiStrokePanel.Thickness = 1
-uiStrokePanel.Parent = modPanel
+-- [INÍCIO DA GUI]
+-- (Cole aqui a seção da GUI do script anterior, ou use esta versão completa e modificada)
 
--- 3. Barra de Título (PanelHeader)
+-- Barra de Título
 local panelHeader = Instance.new("Frame")
 panelHeader.Name = "PanelHeader"
 panelHeader.Size = UDim2.new(1, 0, 0, 48)
 panelHeader.BackgroundColor3 = Color3.fromRGB(59, 59, 59)
 panelHeader.BackgroundTransparency = 0.4
 panelHeader.Parent = modPanel
-
+--... (elementos da barra de título)
 local headerTitleContainer = Instance.new("Frame")
 headerTitleContainer.Name = "HeaderTitleContainer"
-headerTitleContainer.Size = UDim2.new(1, -120, 1, 0) -- Espaço para os botões
+headerTitleContainer.Size = UDim2.new(1, -120, 1, 0)
 headerTitleContainer.Position = UDim2.new(0, 0, 0, 0)
 headerTitleContainer.BackgroundTransparency = 1
 headerTitleContainer.Parent = panelHeader
-
 local uiListLayoutTitle = Instance.new("UIListLayout")
 uiListLayoutTitle.FillDirection = Enum.FillDirection.Horizontal
 uiListLayoutTitle.VerticalAlignment = Enum.VerticalAlignment.Center
 uiListLayoutTitle.Padding = UDim.new(0, 8)
 uiListLayoutTitle.Parent = headerTitleContainer
-
--- Ícone
 local icon = Instance.new("ImageLabel")
 icon.Name = "Icon"
-icon.Image = "rbxassetid://6031219436" -- Ícone de escudo (exemplo)
+icon.Image = "rbxassetid://6031219436"
 icon.Size = UDim2.new(0, 24, 0, 24)
 icon.BackgroundTransparency = 1
 icon.ImageColor3 = Color3.fromRGB(220, 220, 220)
 icon.Parent = headerTitleContainer
-
--- Título
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Name = "TitleLabel"
 titleLabel.Text = "CALVO MOD"
@@ -96,26 +220,21 @@ titleLabel.BackgroundTransparency = 1
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Size = UDim2.new(0, 150, 1, 0)
 titleLabel.Parent = headerTitleContainer
-
 local uiPaddingTitle = Instance.new("UIPadding")
 uiPaddingTitle.PaddingLeft = UDim.new(0, 12)
 uiPaddingTitle.Parent = headerTitleContainer
-
--- Botões de Controle da Janela
 local controlButtons = Instance.new("Frame")
 controlButtons.Name = "ControlButtons"
 controlButtons.Size = UDim2.new(0, 100, 1, 0)
 controlButtons.Position = UDim2.new(1, -110, 0, 0)
 controlButtons.BackgroundTransparency = 1
 controlButtons.Parent = panelHeader
-
 local uiListLayoutControls = Instance.new("UIListLayout")
 uiListLayoutControls.FillDirection = Enum.FillDirection.Horizontal
 uiListLayoutControls.VerticalAlignment = Enum.VerticalAlignment.Center
 uiListLayoutControls.HorizontalAlignment = Enum.HorizontalAlignment.Right
 uiListLayoutControls.Padding = UDim.new(0, 8)
 uiListLayoutControls.Parent = controlButtons
-
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
 closeButton.Size = UDim2.new(0, 18, 0, 18)
@@ -123,7 +242,6 @@ closeButton.Text = ""
 closeButton.BackgroundColor3 = Color3.fromRGB(255, 89, 89)
 closeButton.Parent = controlButtons
 Instance.new("UICorner", closeButton).CornerRadius = UDim.new(1, 0)
-
 local minimizeButton = Instance.new("TextButton")
 minimizeButton.Name = "MinimizeButton"
 minimizeButton.Size = UDim2.new(0, 18, 0, 18)
@@ -131,7 +249,6 @@ minimizeButton.Text = ""
 minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 189, 74)
 minimizeButton.Parent = controlButtons
 Instance.new("UICorner", minimizeButton).CornerRadius = UDim.new(1, 0)
-
 local maximizeButton = Instance.new("TextButton")
 maximizeButton.Name = "MaximizeButton"
 maximizeButton.Size = UDim2.new(0, 18, 0, 18)
@@ -140,25 +257,24 @@ maximizeButton.BackgroundColor3 = Color3.fromRGB(89, 204, 89)
 maximizeButton.Parent = controlButtons
 Instance.new("UICorner", maximizeButton).CornerRadius = UDim.new(1, 0)
 
--- 4. Conteúdo (Sidebar + ContentArea)
+-- Container Principal (Sidebar + Conteúdo)
 local mainContentContainer = Instance.new("Frame")
 mainContentContainer.Name = "MainContentContainer"
 mainContentContainer.Size = UDim2.new(1, 0, 1, -48)
 mainContentContainer.Position = UDim2.new(0, 0, 0, 48)
 mainContentContainer.BackgroundTransparency = 1
 mainContentContainer.Parent = modPanel
-
 local uiListLayoutMain = Instance.new("UIListLayout")
 uiListLayoutMain.FillDirection = Enum.FillDirection.Horizontal
 uiListLayoutMain.Parent = mainContentContainer
 
--- 5. Sidebar
+-- Sidebar
 local sidebar = Instance.new("Frame")
 sidebar.Name = "Sidebar"
 sidebar.Size = UDim2.new(0, 160, 1, 0)
 sidebar.BackgroundTransparency = 1
 sidebar.Parent = mainContentContainer
-
+-- ... (outros elementos da sidebar)
 local uiStrokeSidebar = Instance.new("UIStroke")
 uiStrokeSidebar.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 uiStrokeSidebar.Color = Color3.fromRGB(255, 255, 255)
@@ -166,24 +282,23 @@ uiStrokeSidebar.Transparency = 0.9
 uiStrokeSidebar.LineJoinMode = Enum.LineJoinMode.Miter
 uiStrokeSidebar.Thickness = 1
 uiStrokeSidebar.Parent = sidebar
-
 local uiListLayoutSidebar = Instance.new("UIListLayout")
 uiListLayoutSidebar.Padding = UDim.new(0, 4)
 uiListLayoutSidebar.SortOrder = Enum.SortOrder.LayoutOrder
 uiListLayoutSidebar.Parent = sidebar
-
 local uiPaddingSidebar = Instance.new("UIPadding")
 uiPaddingSidebar.PaddingTop = UDim.new(0, 16)
 uiPaddingSidebar.Parent = sidebar
 
--- 6. Área de Conteúdo
+
+-- Área de Conteúdo
 local contentArea = Instance.new("Frame")
 contentArea.Name = "ContentArea"
 contentArea.Size = UDim2.new(1, -160, 1, 0)
 contentArea.BackgroundTransparency = 1
 contentArea.ClipsDescendants = true
 contentArea.Parent = mainContentContainer
-
+-- ... (outros elementos da área de conteúdo)
 local uiPaddingContent = Instance.new("UIPadding")
 uiPaddingContent.PaddingLeft = UDim.new(0, 24)
 uiPaddingContent.PaddingRight = UDim.new(0, 24)
@@ -191,25 +306,20 @@ uiPaddingContent.PaddingTop = UDim.new(0, 16)
 uiPaddingContent.PaddingBottom = UDim.new(0, 16)
 uiPaddingContent.Parent = contentArea
 
---======= CONTEÚDO DAS SEÇÕES =======--
-
--- Seção MAIN
+-- Seções de conteúdo
 local mainContent = Instance.new("Frame")
 mainContent.Name = "main-content"
 mainContent.Size = UDim2.new(1, 0, 1, 0)
 mainContent.BackgroundTransparency = 1
 mainContent.Visible = true
 mainContent.Parent = contentArea
-
--- Seção Players
+-- (as outras seções, playersContent e settingsContent, são criadas da mesma forma)
 local playersContent = Instance.new("Frame")
 playersContent.Name = "players-content"
 playersContent.Size = UDim2.new(1, 0, 1, 0)
 playersContent.BackgroundTransparency = 1
 playersContent.Visible = false
 playersContent.Parent = contentArea
-
--- Seção Settings
 local settingsContent = Instance.new("Frame")
 settingsContent.Name = "settings-content"
 settingsContent.Size = UDim2.new(1, 0, 1, 0)
@@ -217,65 +327,7 @@ settingsContent.BackgroundTransparency = 1
 settingsContent.Visible = false
 settingsContent.Parent = contentArea
 
---== Elementos da Seção MAIN
-local function createToggleOption(parent, text, featureName)
-    local toggleFrame = Instance.new("Frame")
-    toggleFrame.Name = text .. "Option"
-    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
-    toggleFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    toggleFrame.BackgroundTransparency = 0.5
-    toggleFrame.Parent = parent
-    Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 8)
-
-    local uiListLayout = Instance.new("UIListLayout")
-    uiListLayout.FillDirection = Enum.FillDirection.Horizontal
-    uiListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    uiListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-    uiListLayout.Padding = UDim.new(0, 12)
-    uiListLayout.Parent = toggleFrame
-
-    local label = Instance.new("TextLabel")
-    label.Name = "Label"
-    label.Text = text
-    -- [[ CORREÇÃO ABAIXO ]] --
-    label.Font = Enum.Font.SourceSansBold -- Alterado de SourceSansSemiBold para SourceSansBold
-    label.TextSize = 14
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Size = UDim2.new(1, -70, 1, 0)
-    label.Parent = toggleFrame
-    Instance.new("UIPadding", label).PaddingLeft = UDim.new(0, 12)
-
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Name = "ToggleButton"
-    toggleButton.Size = UDim2.new(0, 48, 0, 24)
-    toggleButton.Text = ""
-    toggleButton.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
-    toggleButton.Parent = toggleFrame
-
-    local switchHandle = Instance.new("Frame")
-    switchHandle.Name = "SwitchHandle"
-    switchHandle.Size = UDim2.new(0, 16, 0, 16)
-    switchHandle.Position = UDim2.new(0, 4, 0.5, 0)
-    switchHandle.AnchorPoint = Vector2.new(0, 0.5)
-    switchHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    switchHandle.Parent = toggleButton
-
-    toggleButton.MouseButton1Click:Connect(function()
-        featureStates[featureName] = not featureStates[featureName]
-        local isEnabled = featureStates[featureName]
-
-        local color = isEnabled and Color3.fromRGB(74, 194, 95) or Color3.fromRGB(90, 90, 90)
-        local pos = isEnabled and UDim2.new(1, -20, 0.5, 0) or UDim2.new(0, 4, 0.5, 0)
-
-        TweenService:Create(toggleButton, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
-        TweenService:Create(switchHandle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Position = pos}):Play()
-        
-        print(string.format("Funcionalidade '%s' %s.", featureName, isEnabled and "ativada" or "desativada"))
-    end)
-end
-
+--== Elementos da Seção MAIN (com Slider)
 local mainLayout = Instance.new("UIListLayout")
 mainLayout.Padding = UDim.new(0, 10)
 mainLayout.Parent = mainContent
@@ -300,25 +352,163 @@ mainDesc.TextXAlignment = Enum.TextXAlignment.Left
 mainDesc.Size = UDim2.new(1, 0, 0, 30)
 mainDesc.Parent = mainContent
 
-createToggleOption(mainContent, "Teletransporte", "teleport")
-createToggleOption(mainContent, "Modo Deus", "godmode")
-createToggleOption(mainContent, "Voo", "fly")
-createToggleOption(mainContent, "Noclip", "noclip")
+-- Função para criar os toggles
+local function createToggleOption(parent, text, featureName, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Name = text .. "Option"
+    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
+    toggleFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    toggleFrame.BackgroundTransparency = 0.5
+    toggleFrame.Parent = parent
+    Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 8)
 
---== Elementos da Seção Players
+    local uiListLayout = Instance.new("UIListLayout")
+    uiListLayout.FillDirection = Enum.FillDirection.Horizontal
+    uiListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    uiListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    uiListLayout.Padding = UDim.new(0, 12)
+    uiListLayout.Parent = toggleFrame
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Text = text
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Size = UDim2.new(1, -70, 1, 0)
+    label.Parent = toggleFrame
+    Instance.new("UIPadding", label).PaddingLeft = UDim.new(0, 12)
+
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 48, 0, 24)
+    toggleButton.Text = ""
+    toggleButton.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
+    toggleButton.Parent = toggleFrame
+
+    local switchHandle = Instance.new("Frame")
+    switchHandle.Name = "SwitchHandle"
+    switchHandle.Size = UDim2.new(0, 16, 0, 16)
+    switchHandle.Position = UDim2.new(0, 4, 0.5, 0)
+    switchHandle.AnchorPoint = Vector2.new(0, 0.5)
+    switchHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    switchHandle.Parent = toggleButton
+    
+    local isEnabled = false
+    toggleButton.MouseButton1Click:Connect(function()
+        isEnabled = not isEnabled
+        local color = isEnabled and Color3.fromRGB(74, 194, 95) or Color3.fromRGB(90, 90, 90)
+        local pos = isEnabled and UDim2.new(1, -20, 0.5, 0) or UDim2.new(0, 4, 0.5, 0)
+
+        TweenService:Create(toggleButton, TweenInfo.new(0.2), {BackgroundColor3 = color}):Play()
+        TweenService:Create(switchHandle, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Position = pos}):Play()
+        
+        callback(isEnabled)
+    end)
+end
+
+-- Função para criar o Slider
+local function createSliderOption(parent, text, min, max, initial, callback)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Name = text .. "Slider"
+    sliderFrame.Size = UDim2.new(1, 0, 0, 60)
+    sliderFrame.BackgroundTransparency = 1
+    sliderFrame.Parent = parent
+
+    local titleLayout = Instance.new("UIListLayout")
+    titleLayout.FillDirection = Enum.FillDirection.Horizontal
+    titleLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    titleLayout.Parent = sliderFrame
+
+    local label = Instance.new("TextLabel")
+    label.Text = text
+    label.Font = Enum.Font.SourceSansBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Size = UDim2.new(0.5, 0, 0, 20)
+    label.Parent = titleLayout
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Text = tostring(initial)
+    valueLabel.Font = Enum.Font.SourceSans
+    valueLabel.TextSize = 14
+    valueLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Size = UDim2.new(0.5, -10, 0, 20)
+    valueLabel.Parent = titleLayout
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, 0, 0, 8)
+    track.Position = UDim2.new(0,0,0,25)
+    track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    track.Parent = sliderFrame
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((initial - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
+    fill.Parent = track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+
+    local handle = Instance.new("TextButton")
+    handle.Size = UDim2.new(0, 16, 0, 16)
+    handle.AnchorPoint = Vector2.new(0.5, 0.5)
+    handle.Position = UDim2.new(fill.Size.X.Scale, 0, 0.5, 0)
+    handle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    handle.Text = ""
+    handle.Parent = track
+    Instance.new("UICorner", handle).CornerRadius = UDim.new(1,0)
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local moveConn
+            moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+                if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                    local newX = math.clamp(moveInput.Position.X - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
+                    local percentage = newX / track.AbsoluteSize.X
+                    local value = math.floor(min + (max - min) * percentage + 0.5)
+
+                    handle.Position = UDim2.new(percentage, 0, 0.5, 0)
+                    fill.Size = UDim2.new(percentage, 0, 1, 0)
+                    valueLabel.Text = tostring(value)
+                    
+                    callback(value)
+                end
+            end)
+            
+            local upConn
+            upConn = UserInputService.InputEnded:Connect(function(upInput)
+                if upInput.UserInputType == Enum.UserInputType.MouseButton1 or upInput.UserInputType == Enum.UserInputType.Touch then
+                    moveConn:Disconnect()
+                    upConn:Disconnect()
+                end
+            end)
+        end
+    end)
+end
+
+createToggleOption(mainContent, "Modo Deus", "godmode", setGodMode)
+createToggleOption(mainContent, "Voo", "fly", setFly)
+createToggleOption(mainContent, "Noclip", "noclip", setNoclip)
+createSliderOption(mainContent, "Velocidade", 16, 200, originalWalkSpeed, setSpeed)
+
+--== Elementos da Seção Players (A lógica será adicionada depois)
+-- ... (código para playersTitle, playersDesc, updatePlayersButton, playerListContainer)
 local playersLayout = Instance.new("UIListLayout")
 playersLayout.Padding = UDim.new(0, 10)
 playersLayout.Parent = playersContent
-
 local playersTitle = mainTitle:Clone()
 playersTitle.Text = "Players"
 playersTitle.Parent = playersContent
-
 local playersDesc = mainDesc:Clone()
 playersDesc.Text = "Lista de jogadores no servidor."
 playersDesc.Size = UDim2.new(1,0,0,20)
 playersDesc.Parent = playersContent
-
 local updatePlayersButton = Instance.new("TextButton")
 updatePlayersButton.Name = "UpdatePlayersButton"
 updatePlayersButton.Text = "Atualizar Lista de Jogadores"
@@ -329,7 +519,6 @@ updatePlayersButton.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
 updatePlayersButton.Size = UDim2.new(1, 0, 0, 36)
 updatePlayersButton.Parent = playersContent
 Instance.new("UICorner", updatePlayersButton).CornerRadius = UDim.new(0, 8)
-
 local playerListContainer = Instance.new("ScrollingFrame")
 playerListContainer.Name = "PlayerListContainer"
 playerListContainer.Size = UDim2.new(1, 0, 1, -120)
@@ -337,24 +526,21 @@ playerListContainer.BackgroundTransparency = 1
 playerListContainer.BorderSizePixel = 0
 playerListContainer.ScrollBarThickness = 6
 playerListContainer.Parent = playersContent
-
 local uiListLayoutPlayers = Instance.new("UIListLayout")
 uiListLayoutPlayers.Padding = UDim.new(0, 4)
 uiListLayoutPlayers.Parent = playerListContainer
 
 --== Elementos da Seção Settings
+-- ... (código para settingsTitle, settingsDesc, saveButton)
 local settingsLayout = Instance.new("UIListLayout")
 settingsLayout.Padding = UDim.new(0, 10)
 settingsLayout.Parent = settingsContent
-
 local settingsTitle = mainTitle:Clone()
 settingsTitle.Text = "Settings"
 settingsTitle.Parent = settingsContent
-
 local settingsDesc = mainDesc:Clone()
 settingsDesc.Text = "Ajuste as configurações do mod."
 settingsDesc.Parent = settingsContent
-
 local saveButton = Instance.new("TextButton")
 saveButton.Name = "SaveButton"
 saveButton.Text = "Salvar Configurações"
@@ -365,228 +551,187 @@ saveButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 saveButton.Size = UDim2.new(1, 0, 0, 40)
 saveButton.Parent = settingsContent
 Instance.new("UICorner", saveButton).CornerRadius = UDim.new(0, 8)
-saveButton.MouseButton1Click:Connect(function()
-    print("Funcionalidade de Salvar Configurações ativada!")
-end)
 
+-- [FIM DA GUI]
 
---======= CRIAÇÃO DOS BOTÕES DO MENU =======--
+--======= MENU DE CONTEXTO DO JOGADOR =======--
+local contextMenu = Instance.new("Frame")
+contextMenu.Name = "PlayerContextMenu"
+contextMenu.Size = UDim2.new(0, 150, 0, 140)
+contextMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+contextMenu.BorderSizePixel = 0
+contextMenu.Visible = false
+contextMenu.Parent = screenGui
+Instance.new("UICorner", contextMenu).CornerRadius = UDim.new(0, 6)
+Instance.new("UIStroke", contextMenu).Color = Color3.fromRGB(100,100,100)
+local cmLayout = Instance.new("UIListLayout")
+cmLayout.Padding = UDim.new(0, 4)
+cmLayout.Parent = contextMenu
+local cmPadding = Instance.new("UIPadding")
+cmPadding.PaddingTop = UDim.new(0,4)
+cmPadding.PaddingBottom = UDim.new(0,4)
+cmPadding.Parent = contextMenu
 
-local menuButtons = {}
+-- Botão de Parar de Telar
+local stopSpectateButton = Instance.new("TextButton")
+stopSpectateButton.Name = "StopSpectateButton"
+stopSpectateButton.Size = UDim2.new(0, 150, 0, 40)
+stopSpectateButton.Position = UDim2.new(0.5, -75, 1, -60)
+stopSpectateButton.Text = "Parar de Telar"
+stopSpectateButton.Font = Enum.Font.SourceSansBold
+stopSpectateButton.TextColor3 = Color3.fromRGB(255,255,255)
+stopSpectateButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+stopSpectateButton.Visible = false
+stopSpectateButton.Parent = screenGui
+Instance.new("UICorner", stopSpectateButton).CornerRadius = UDim.new(0,8)
 
-local function createMenuButton(text, targetId, iconId)
+local function createContextMenuButton(text, callback)
     local button = Instance.new("TextButton")
     button.Name = text .. "Button"
-    button.Size = UDim2.new(1, 0, 0, 40)
-    button.Text = ""
-    button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    button.Size = UDim2.new(1, -8, 0, 30)
+    button.Position = UDim2.new(0.5, 0, 0, 0)
+    button.AnchorPoint = Vector2.new(0.5, 0)
+    button.Text = text
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.TextColor3 = Color3.fromRGB(220, 220, 220)
     button.BackgroundTransparency = 1
-    button.LayoutOrder = #menuButtons + 1
-    button.Parent = sidebar
-
-    local uiListLayout = Instance.new("UIListLayout")
-    uiListLayout.FillDirection = Enum.FillDirection.Horizontal
-    uiListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    uiListLayout.Padding = UDim.new(0, 10)
-    uiListLayout.Parent = button
-
-    local selectionIndicator = Instance.new("Frame")
-    selectionIndicator.Name = "SelectionIndicator"
-    selectionIndicator.Size = UDim2.new(0, 2, 1, 0)
-    selectionIndicator.BackgroundColor3 = Color3.fromRGB(59, 130, 246)
-    selectionIndicator.BorderSizePixel = 0
-    selectionIndicator.Visible = false -- Invisível por padrão
-    selectionIndicator.Parent = button
-
-    local icon = Instance.new("ImageLabel")
-    icon.Image = iconId
-    icon.Size = UDim2.new(0, 20, 0, 20)
-    icon.BackgroundTransparency = 1
-    icon.ImageColor3 = Color3.fromRGB(200, 200, 200)
-    icon.Parent = button
-
-    local label = Instance.new("TextLabel")
-    label.Text = string.upper(text)
-    label.Font = Enum.Font.SourceSans
-    label.TextSize = 14
-    label.TextColor3 = Color3.fromRGB(200, 200, 200)
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Size = UDim2.new(1, -32, 1, 0)
-    label.Parent = button
-
-    table.insert(menuButtons, {
-        button = button,
-        target = targetId,
-        indicator = selectionIndicator
-    })
+    button.Parent = contextMenu
     
-    return button
-end
-
-createMenuButton("MAIN", "main-content", "rbxassetid://7923390289") -- Home Icon
-createMenuButton("Players", "players-content", "rbxassetid://7923401584") -- Users Icon
-createMenuButton("Settings", "settings-content", "rbxassetid://7923396924") -- Settings Icon
-
-
---======= PAINEL MINIMIZADO =======--
-local minimizedPanel = Instance.new("TextButton")
-minimizedPanel.Name = "MinimizedPanel"
-minimizedPanel.Size = UDim2.new(0, 120, 0, 36)
-minimizedPanel.Position = UDim2.new(1, -140, 1, -50)
-minimizedPanel.Text = "CALVO MOD"
-minimizedPanel.Font = Enum.Font.SourceSansBold
-minimizedPanel.TextSize = 14
-minimizedPanel.TextColor3 = Color3.fromRGB(255, 255, 255)
-minimizedPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-minimizedPanel.BackgroundTransparency = 0.2
-minimizedPanel.Visible = false
-minimizedPanel.Parent = screenGui
-
-Instance.new("UICorner", minimizedPanel).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", minimizedPanel).Transparency = 0.8
-
---======= FUNCIONALIDADES (LÓGICA) =======--
-
--- --- Funcionalidade de Arraste do Painel ---
-local dragging = false
-local dragInput, dragStart, startPos
-panelHeader.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = modPanel.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        if dragging then
-            local delta = input.Position - dragStart
-            modPanel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    button.MouseButton1Click:Connect(function()
+        contextMenu.Visible = false
+        if currentPlayerTarget then
+            callback(currentPlayerTarget)
         end
-    end
-end)
-
--- --- Funcionalidade de Navegação do Menu ---
-local function switchTab(targetId)
-    for _, contentFrame in pairs(contentArea:GetChildren()) do
-        if contentFrame:IsA("Frame") then
-            contentFrame.Visible = (contentFrame.Name == targetId)
-        end
-    end
-    for _, mb in ipairs(menuButtons) do
-        local isSelected = (mb.target == targetId)
-        mb.indicator.Visible = isSelected
-        mb.button.BackgroundTransparency = isSelected and 0.8 or 1
-    end
-end
-
-for _, mb in ipairs(menuButtons) do
-    mb.button.MouseButton1Click:Connect(function()
-        switchTab(mb.target)
     end)
 end
 
--- --- Funcionalidade dos Botões de Controle ---
-closeButton.MouseButton1Click:Connect(function()
-    modPanel.Visible = false
-end)
+--======= LÓGICA DAS AÇÕES DO MENU DE CONTEXTO =======--
 
-minimizeButton.MouseButton1Click:Connect(function()
-    modPanel.Visible = false
-    minimizedPanel.Visible = true
-end)
-
-minimizedPanel.MouseButton1Click:Connect(function()
-    modPanel.Visible = true
-    minimizedPanel.Visible = false
-end)
-
--- --- Funcionalidade da Lista de Jogadores ---
-local function renderPlayerList()
-    -- Limpa a lista antiga
-    for _, child in ipairs(playerListContainer:GetChildren()) do
-        if not child:IsA("UILayout") then
-            child:Destroy()
-        end
+createContextMenuButton("Teleportar", function(targetPlayer)
+    if getCharacter() and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,3,0)
+        print("Teleportado para " .. targetPlayer.Name)
     end
+end)
 
-    local allPlayers = Players:GetPlayers()
-    if #allPlayers == 0 then
-        local noPlayersLabel = Instance.new("TextLabel")
-        noPlayersLabel.Text = "Nenhum jogador encontrado."
-        noPlayersLabel.Size = UDim2.new(1, 0, 0, 30)
-        noPlayersLabel.Font = Enum.Font.SourceSansItalic
-        noPlayersLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-        noPlayersLabel.BackgroundTransparency = 1
-        noPlayersLabel.Parent = playerListContainer
-        return
-    end
-
-    for _, player in ipairs(allPlayers) do
-        local playerFrame = Instance.new("Frame")
-        playerFrame.Name = player.Name
-        playerFrame.Size = UDim2.new(1, 0, 0, 40)
-        playerFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-        playerFrame.BackgroundTransparency = 0.5
-        playerFrame.Parent = playerListContainer
-        Instance.new("UICorner", playerFrame).CornerRadius = UDim.new(0, 6)
-
-        local layout = Instance.new("UIListLayout")
-        layout.FillDirection = Enum.FillDirection.Horizontal
-        layout.VerticalAlignment = Enum.VerticalAlignment.Center
-        layout.Padding = UDim.new(0, 10)
-        layout.Parent = playerFrame
-
-        local padding = Instance.new("UIPadding")
-        padding.PaddingLeft = UDim.new(0, 10)
-        padding.PaddingRight = UDim.new(0, 10)
-        padding.Parent = playerFrame
-
-        local playerNameLabel = Instance.new("TextLabel")
-        playerNameLabel.Text = player.DisplayName
-        playerNameLabel.Font = Enum.Font.SourceSans
-        playerNameLabel.TextSize = 14
-        playerNameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-        playerNameLabel.BackgroundTransparency = 1
-        playerNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-        playerNameLabel.Size = UDim2.new(1, -80, 1, 0) -- Deixa espaço para o botão
-        playerNameLabel.Parent = playerFrame
-
-        local actionButton = Instance.new("TextButton")
-        actionButton.Text = "Ação"
-        actionButton.Font = Enum.Font.SourceSansBold
-        actionButton.TextSize = 12
-        actionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-        actionButton.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
-        actionButton.Size = UDim2.new(0, 60, 0, 24)
-        actionButton.Parent = playerFrame
-        Instance.new("UICorner", actionButton).CornerRadius = UDim.new(0, 4)
-
-        actionButton.MouseButton1Click:Connect(function()
-            print("Ação ativada para o jogador: " .. player.Name)
+createContextMenuButton("Puxar Jogador", function(targetPlayer)
+    if getCharacter() and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        -- Esta ação depende de permissões de executor
+        pcall(function()
+            targetPlayer.Character.HumanoidRootPart.CFrame = rootPart.CFrame
+            print("Puxando " .. targetPlayer.Name)
         end)
     end
-end
-
-updatePlayersButton.MouseButton1Click:Connect(function()
-    print("Atualizando lista de jogadores...")
-    renderPlayerList()
-    print("Lista de jogadores atualizada.")
 end)
 
+createContextMenuButton("Copiar Skin", function(targetPlayer)
+    if getCharacter() and targetPlayer.Character then
+        -- Limpa skin antiga
+        for _, v in pairs(character:GetChildren()) do
+            if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("BodyColors") then
+                v:Destroy()
+            end
+        end
+        -- Copia nova skin
+        for _, v in pairs(targetPlayer.Character:GetChildren()) do
+            if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("BodyColors") then
+                v:Clone().Parent = character
+            end
+        end
+        print("Skin copiada de " .. targetPlayer.Name)
+    end
+end)
+
+createContextMenuButton("Telar Jogador", function(targetPlayer)
+    if targetPlayer.Character and targetPlayer.Character:FindFirstChild("Humanoid") then
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CameraSubject = targetPlayer.Character.Humanoid
+        camera.CFrame = CFrame.new(targetPlayer.Character.HumanoidRootPart.Position) * CFrame.new(0,5,15)
+        stopSpectateButton.Visible = true
+        print("Telando " .. targetPlayer.Name)
+    end
+end)
+
+stopSpectateButton.MouseButton1Click:Connect(function()
+    if getCharacter() then
+        camera.CameraType = Enum.CameraType.Custom
+        camera.CameraSubject = humanoid
+        stopSpectateButton.Visible = false
+    end
+end)
+
+--======= FUNCIONALIDADES GERAIS DO PAINEL (arrastar, fechar, menu, lista de players) =======--
+
+-- ... (O código de arrastar, fechar, minimizar e navegar no menu permanece o mesmo)
+-- Cole a seção "FUNCIONALIDADES (LÓGICA)" do script anterior aqui.
+-- Ou use o código abaixo que já está completo.
+
+-- [INÍCIO DA LÓGICA DO PAINEL]
+local dragging = false
+local dragStart, startPos
+panelHeader.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = modPanel.Position
+        local conn
+        conn = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end
+        end)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        modPanel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+closeButton.MouseButton1Click:Connect(function() modPanel.Visible = false end)
+local minimizedPanel = Instance.new("TextButton") -- Definido aqui para a função de minimizar
+minimizedPanel.Name = "MinimizedPanel"; minimizedPanel.Size = UDim2.new(0, 120, 0, 36); minimizedPanel.Position = UDim2.new(1, -140, 1, -50); minimizedPanel.Text = "CALVO MOD"; minimizedPanel.Font = Enum.Font.SourceSansBold; minimizedPanel.TextSize = 14; minimizedPanel.TextColor3 = Color3.fromRGB(255, 255, 255); minimizedPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 40); minimizedPanel.BackgroundTransparency = 0.2; minimizedPanel.Visible = false; minimizedPanel.Parent = screenGui; Instance.new("UICorner", minimizedPanel).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", minimizedPanel).Transparency = 0.8
+minimizeButton.MouseButton1Click:Connect(function() modPanel.Visible = false; minimizedPanel.Visible = true end)
+minimizedPanel.MouseButton1Click:Connect(function() modPanel.Visible = true; minimizedPanel.Visible = false end)
+
+local menuButtons = {}
+local function createMenuButton(text, targetId, iconId) -- Recriação simplificada
+    local button = Instance.new("TextButton"); button.Name = text .. "Button"; button.Size = UDim2.new(1, 0, 0, 40); button.Text = ""; button.BackgroundColor3 = Color3.fromRGB(255, 255, 255); button.BackgroundTransparency = 1; button.LayoutOrder = #menuButtons + 1; button.Parent = sidebar; local uiListLayout = Instance.new("UIListLayout"); uiListLayout.FillDirection = Enum.FillDirection.Horizontal; uiListLayout.VerticalAlignment = Enum.VerticalAlignment.Center; uiListLayout.Padding = UDim.new(0, 10); uiListLayout.Parent = button; local selectionIndicator = Instance.new("Frame"); selectionIndicator.Name = "SelectionIndicator"; selectionIndicator.Size = UDim2.new(0, 2, 1, 0); selectionIndicator.BackgroundColor3 = Color3.fromRGB(59, 130, 246); selectionIndicator.BorderSizePixel = 0; selectionIndicator.Visible = false; selectionIndicator.Parent = button; local icon = Instance.new("ImageLabel"); icon.Image = iconId; icon.Size = UDim2.new(0, 20, 0, 20); icon.BackgroundTransparency = 1; icon.ImageColor3 = Color3.fromRGB(200, 200, 200); icon.Parent = button; local label = Instance.new("TextLabel"); label.Text = string.upper(text); label.Font = Enum.Font.SourceSans; label.TextSize = 14; label.TextColor3 = Color3.fromRGB(200, 200, 200); label.BackgroundTransparency = 1; label.TextXAlignment = Enum.TextXAlignment.Left; label.Size = UDim2.new(1, -32, 1, 0); label.Parent = button; table.insert(menuButtons, {button = button, target = targetId, indicator = selectionIndicator}); return button
+end
+createMenuButton("MAIN", "main-content", "rbxassetid://7923390289")
+createMenuButton("Players", "players-content", "rbxassetid://7923401584")
+createMenuButton("Settings", "settings-content", "rbxassetid://7923396924")
+
+local function switchTab(targetId)
+    for _, child in pairs(contentArea:GetChildren()) do if child:IsA("Frame") then child.Visible = (child.Name == targetId) end end
+    for _, mb in ipairs(menuButtons) do local isSelected = (mb.target == targetId); mb.indicator.Visible = isSelected; mb.button.BackgroundTransparency = isSelected and 0.8 or 1 end
+end
+for _, mb in ipairs(menuButtons) do mb.button.MouseButton1Click:Connect(function() switchTab(mb.target); contextMenu.Visible = false end) end
+
+-- Lógica atualizada da lista de jogadores
+local function renderPlayerList()
+    for _, child in ipairs(playerListContainer:GetChildren()) do if not child:IsA("UILayout") then child:Destroy() end end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer then -- Não mostrar a si mesmo na lista
+            local playerFrame = Instance.new("Frame"); playerFrame.Name = player.Name; playerFrame.Size = UDim2.new(1, 0, 0, 40); playerFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 70); playerFrame.BackgroundTransparency = 0.5; playerFrame.Parent = playerListContainer; Instance.new("UICorner", playerFrame).CornerRadius = UDim.new(0, 6); local layout = Instance.new("UIListLayout"); layout.FillDirection = Enum.FillDirection.Horizontal; layout.VerticalAlignment = Enum.VerticalAlignment.Center; layout.Padding = UDim.new(0, 10); layout.Parent = playerFrame; local padding = Instance.new("UIPadding"); padding.PaddingLeft = UDim.new(0, 10); padding.PaddingRight = UDim.new(0, 10); padding.Parent = playerFrame; local playerNameLabel = Instance.new("TextLabel"); playerNameLabel.Text = player.DisplayName; playerNameLabel.Font = Enum.Font.SourceSans; playerNameLabel.TextSize = 14; playerNameLabel.TextColor3 = Color3.fromRGB(220, 220, 220); playerNameLabel.BackgroundTransparency = 1; playerNameLabel.TextXAlignment = Enum.TextXAlignment.Left; playerNameLabel.Size = UDim2.new(1, -80, 1, 0); playerNameLabel.Parent = playerFrame; local actionButton = Instance.new("TextButton"); actionButton.Text = "Ação"; actionButton.Font = Enum.Font.SourceSansBold; actionButton.TextSize = 12; actionButton.TextColor3 = Color3.fromRGB(255, 255, 255); actionButton.BackgroundColor3 = Color3.fromRGB(90, 90, 90); actionButton.Size = UDim2.new(0, 60, 0, 24); actionButton.Parent = playerFrame; Instance.new("UICorner", actionButton).CornerRadius = UDim.new(0, 4)
+            actionButton.MouseButton1Click:Connect(function()
+                currentPlayerTarget = player
+                contextMenu.Position = UDim2.fromOffset(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
+                contextMenu.Visible = true
+            end)
+        end
+    end
+end
+updatePlayersButton.MouseButton1Click:Connect(renderPlayerList)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if contextMenu.Visible and not contextMenu:IsAncestorOf(playerGui:GetGuiObjectsAtPosition(input.Position.X, input.Position.Y)[1]) then
+            contextMenu.Visible = false
+        end
+    end
+end)
+-- [FIM DA LÓGICA DO PAINEL]
+
 --======= INICIALIZAÇÃO =======--
-
--- Adiciona o ScreenGui à interface do jogador
 screenGui.Parent = playerGui
-
--- Seleciona a primeira aba por padrão
 switchTab("main-content")
-print("Painel CALVO MOD (Corrigido) carregado com sucesso.")
+print("Painel CALVO MOD (Funcional) carregado com sucesso.")
