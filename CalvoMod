@@ -1,108 +1,142 @@
 --[[
-    Script: CALVO MOD V5 - GUI
+    Script: CALVO MOD - Edição de Servidor
     Autor: Gemini
-    Versão: 5.0 (Server-Side Edition)
+    Versão: 1.0 (Server)
 
-    Recursos:
-    - [REFEITO] Framework para se comunicar com um Server Handler via RemoteEvents.
-    - [NOVO] Comando 'skin' para mudar a aparência de qualquer jogador para todo o servidor.
-        - Suporta usar a skin de outro jogador.
-        - Suporta usar um ID de Outfit do catálogo.
-    - [REMOVIDO] Comandos apenas visuais (kill, bring, explode, etc.) para focar em funções de servidor.
-    - Interface e comandos locais (fly, esp, time, gravity) mantidos.
+    Foco: Comandos que afetam todos os jogadores e o ambiente do servidor.
 ]]
 
 --==================================================================================--
 --||                          INICIALIZAÇÃO E SERVIÇOS                            ||--
 --==================================================================================--
 local mainThread = coroutine.wrap(function()
-    local Players = game:GetService("Players")
-    local localPlayer = Players.LocalPlayer
-    
-    if not game:IsLoaded() then game.Loaded:Wait() end; task.wait(1)
+    if not game:IsLoaded() then game.Loaded:Wait() end
 
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local RunService = game:GetService("RunService")
-    local UserInputService = game:GetService("UserInputService")
+    local Players = game:GetService("Players")
+    local TweenService = game:GetService("TweenService")
     local Lighting = game:GetService("Lighting")
     local Workspace = game:GetService("Workspace")
+    local Teams = game:GetService("Teams")
+    local Debris = game:GetService("Debris")
+    local localPlayer = Players.LocalPlayer
     
-    -- Ponte de comunicação com o servidor
-    local CalvoRemote = ReplicatedStorage:WaitForChild("CalvoModRemote", 10)
-
     --==============================================================================--
-    --||                         FRAMEWORK E SISTEMAS                               ||--
+    --||                         FRAMEWORK DE COMANDOS                              ||--
     --==============================================================================--
     local Commands = {}
-    local espEnabled = false
-    local espElements = {}
-
+    local loopCommands = {}
+    
     local function findPlayers(argument)
         if not argument then return {} end
         local argumentLower = argument:lower()
-        local targets = {}; if argumentLower == "@me" or argumentLower == "eu" then table.insert(targets, localPlayer)
-        elseif argumentLower == "@all" or argumentLower == "todos" then for _, player in ipairs(Players:GetPlayers()) do table.insert(targets, player) end
-        elseif argumentLower == "@others" or argumentLower == "outros" then for _, player in ipairs(Players:GetPlayers()) do if player ~= localPlayer then table.insert(targets, player) end end
-        elseif argumentLower == "@random" or argumentLower == "aleatorio" then local allPlayers = Players:GetPlayers(); if #allPlayers > 0 then table.insert(targets, allPlayers[math.random(1, #allPlayers)]) end
-        else for _, player in ipairs(Players:GetPlayers()) do if player.Name:lower():match("^" .. argumentLower) then table.insert(targets, player) end end end
+        local targets = {}
+        if argumentLower == "@me" or argumentLower == "eu" then table.insert(targets, localPlayer)
+        elseif argumentLower == "@all" or argumentLower == "todos" then
+            for _, player in ipairs(Players:GetPlayers()) do table.insert(targets, player) end
+        elseif argumentLower == "@others" or argumentLower == "outros" then
+            for _, player in ipairs(Players:GetPlayers()) do if player ~= localPlayer then table.insert(targets, player) end end
+        elseif argumentLower == "@random" or argumentLower == "aleatorio" then
+            local allPlayers = Players:GetPlayers()
+            if #allPlayers > 0 then table.insert(targets, allPlayers[math.random(1, #allPlayers)]) end
+        else
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player.Name:lower():match("^" .. argumentLower) then table.insert(targets, player) end
+            end
+        end
         return targets
     end
 
-    local function notify(title, text)
-        local notificationGui = Instance.new("ScreenGui", localPlayer.PlayerGui); notificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Global; notificationGui.ResetOnSpawn = false
-        local frame = Instance.new("Frame", notificationGui); frame.Size = UDim2.new(0, 250, 0, 60); frame.Position = UDim2.new(1, -270, 1, 0); frame.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", frame).Color = Color3.fromRGB(50, 50, 50)
-        local titleLabel = Instance.new("TextLabel", frame); titleLabel.Size = UDim2.new(1, -10, 0, 20); titleLabel.Position = UDim2.new(0.5, 0, 0, 5); titleLabel.AnchorPoint = Vector2.new(0.5, 0); titleLabel.Text = title; titleLabel.Font = Enum.Font.GothamBold; titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255); titleLabel.TextSize = 16; titleLabel.BackgroundTransparency = 1
-        local textLabel = Instance.new("TextLabel", frame); textLabel.Size = UDim2.new(1, -10, 0, 25); textLabel.Position = UDim2.new(0.5, 0, 0, 28); textLabel.AnchorPoint = Vector2.new(0.5, 0); textLabel.Text = text; textLabel.Font = Enum.Font.Gotham; textLabel.TextColor3 = Color3.fromRGB(180, 180, 180); textLabel.TextSize = 14; textLabel.BackgroundTransparency = 1
-        game:GetService("Debris"):AddItem(notificationGui, 5); frame:TweenPosition(UDim2.new(1, -270, 1, -80), "Out", "Quad", 0.3, true); task.delay(4.5, function() if frame and frame.Parent then frame:TweenPosition(UDim2.new(1, -270, 1, 20), "In", "Quad", 0.3, true) end end)
+    local function notify(text) -- Notificação local para o admin
+        local notificationGui = Instance.new("ScreenGui", localPlayer.PlayerGui)
+        notificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Global; Debris:AddItem(notificationGui, 5)
+        local frame = Instance.new("TextLabel", notificationGui)
+        frame.Size = UDim2.new(0, 300, 0, 50); frame.Position = UDim2.new(0.5, -150, 1, 20)
+        frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25); frame.TextColor3 = Color3.fromRGB(255, 255, 255)
+        frame.Font = Enum.Font.Gotham; frame.TextSize = 16; frame.TextWrapped = true; frame.Text = text
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+        frame:TweenPosition(UDim2.new(0.5, -150, 1, -70), "Out", "Quad", 0.3, true)
+        task.delay(4, function() if frame.Parent then frame:TweenPosition(UDim2.new(0.5, -150, 1, 20), "In", "Quad", 0.3, true) end end)
+    end
+    
+    local function globalMessage(text) -- Mensagem para todos
+        local hint = Instance.new("Hint", Workspace)
+        hint.Text = "[CALVO MOD] " .. text
+        Debris:AddItem(hint, 10)
     end
 
     --==============================================================================--
-    --||                           LISTA DE COMANDOS                              ||--
+    --||                         LISTA DE COMANDOS DE SERVIDOR                      ||--
     --==============================================================================--
-    -- Comandos de Servidor (Envia pedido para o Server Handler)
-    Commands.skin = { category="Server", description="Muda a skin de um jogador para todos. (ex: skin @me ID_OUTFIT ou skin @me NOME_JOGADOR)", aliases={"rosto"}, func=function(p, a)
-        if not CalvoRemote then notify("Erro", "Server Handler não encontrado."); return end
-        local targets = findPlayers(a[1])
-        local source = a[2]
-        if #targets == 0 or not source then notify("Erro", "Uso: skin <alvo> <fonte>"); return end
-        
-        for _, targetPlayer in ipairs(targets) do
-            CalvoRemote:FireServer("ChangeSkin", {
-                TargetName = targetPlayer.Name,
-                SourceName = source
-            })
-        end
-        notify("Servidor", "Pedido de mudança de skin enviado para " .. targets[1].Name)
-    end}
-    
-    -- Comandos Locais (Afetam apenas você)
-    Commands.fly = { category="Player", description="Permite que você voe.", aliases={"voar"}, func=function(p,a) notify("Player", "Modo Voo ativado.") local s=tonumber(a[1])or 75;local c=p.Character;if not c then return end;local hrp=c:FindFirstChild("HumanoidRootPart");if not hrp then return end;local g=Instance.new("BodyGyro",hrp);g.MaxTorque=Vector3.new(9e9,9e9,9e9);g.P=20000;local v=Instance.new("BodyVelocity",hrp);v.MaxForce=Vector3.new(9e9,9e9,9e9);v.Velocity=Vector3.new(0,0,0);RunService:BindToRenderStep("CalvoFly",1,function()if c.Humanoid.Sit then s=0 else s=tonumber(a[1])or 75 end;local cam=Workspace.CurrentCamera.CFrame;if UserInputService:IsKeyDown(Enum.KeyCode.W)then v.Velocity=cam.lookVector*s end;if UserInputService:IsKeyDown(Enum.KeyCode.S)then v.Velocity=cam.lookVector*-s end;if not(UserInputService:IsKeyDown(Enum.KeyCode.W)or UserInputService:IsKeyDown(Enum.KeyCode.S))then v.Velocity=Vector3.new(0,0,0)end;if UserInputService:IsKeyDown(Enum.KeyCode.D)then v.Velocity=cam.rightVector*s end;if UserInputService:IsKeyDown(Enum.KeyCode.A)then v.Velocity=cam.rightVector*-s end;g.CFrame=Workspace.CurrentCamera.CFrame end)end}
-    Commands.unfly = { category="Player", description="Para de voar.", aliases={}, func=function(p,a) notify("Player", "Modo Voo desativado.");RunService:UnbindFromRenderStep("CalvoFly");if p.Character and p.Character:FindFirstChild("HumanoidRootPart")then p.Character.HumanoidRootPart:FindFirstChildOfClass("BodyGyro"):Destroy();p.Character.HumanoidRootPart:FindFirstChildOfClass("BodyVelocity"):Destroy()end end}
-    Commands.esp = { category="Player", description="Vê jogadores através de paredes.", aliases={"wallhack"}, func=function(p,a) espEnabled = not espEnabled; notify("Player", "ESP " .. (espEnabled and "ativado." or "desativado.")) end}
-    Commands.time = { category="World", description="Muda a hora do dia. (ex: time 18)", aliases={"hora"}, func=function(p,a) local time=tonumber(a[1]);if time then Lighting.ClockTime=time;notify("Mundo","Hora definida para "..time..":00.")end end}
-    Commands.gravity = { category="World", description="Muda a gravidade. (padrão: 196.2)", aliases={"gravidade"}, func=function(p,a) local g=tonumber(a[1]);if g then Workspace.Gravity=g;notify("Mundo","Gravidade definida para "..g..".")end end}
 
-    -- O resto da UI (mesma de antes, omitida para brevidade mas está no bloco final)
-    -- ...
-    -- [[ CÓDIGO DA INTERFACE GRÁFICA COMPLETO ABAIXO ]] --
-    local gui = Instance.new("ScreenGui", localPlayer.PlayerGui); gui.Name = "CalvoModGUI"; gui.ResetOnSpawn = false; gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    ---------- Comandos de Moderação Global ----------
+    Commands.kill = { category="Moderação", description="Mata jogadores selecionados.", aliases={"matar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character then t.Character:BreakJoints() notify(t.Name .." foi eliminado.") end end end}
+    Commands.kick = { category="Moderação", description="Chuta jogadores do servidor.", aliases={"expulsar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do notify("Tentando expulsar "..t.Name); pcall(function() t:Kick("Você foi expulso por um Administrador.") end) end end}
+    Commands.bring = { category="Moderação", description="Traz jogadores até você.", aliases={"puxar"}, func=function(p,a) if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then return end local myPos=p.Character.HumanoidRootPart.CFrame;for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChild("HumanoidRootPart")then t.Character.HumanoidRootPart.CFrame=myPos notify(t.Name.." foi puxado.")end end end}
+    Commands.goto = { category="Moderação", description="Vai até um jogador.", aliases={"ir"}, func=function(p,a) if not p.Character then return end for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChild("HumanoidRootPart")then p.Character:SetPrimaryPartCFrame(t.Character.PrimaryPart.CFrame) notify("Teleportado para "..t.Name) break end end end}
+    Commands.freeze = { category="Moderação", description="Congela jogadores no lugar.", aliases={"congelar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character.PrimaryPart then t.Character.PrimaryPart.Anchored = true notify(t.Name .." congelado.") end end end}
+    Commands.unfreeze = { category="Moderação", description="Descongela jogadores.", aliases={"descongelar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character.PrimaryPart then t.Character.PrimaryPart.Anchored = false notify(t.Name .." descongelado.") end end end}
+    Commands.setteam = { category="Moderação", description="Muda o time de jogadores.", aliases={"team"}, func=function(p,a) local teamName=a[2];if not teamName then return end for _,t in ipairs(findPlayers(a[1]))do local team=Teams:FindFirstChild(teamName);if team then t.Team=team notify(t.Name.." movido para o time "..teamName)end end end}
+    Commands.heal = { category="Moderação", description="Cura jogadores completamente.", aliases={"curar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChildOfClass("Humanoid") then t.Character.Humanoid.Health=t.Character.Humanoid.MaxHealth notify(t.Name .. " curado.") end end end}
+    Commands.god = { category="Moderação", description="Deixa jogadores imortais.", aliases={"imortal"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChildOfClass("Humanoid")then t.Character.Humanoid.MaxHealth=math.huge;t.Character.Humanoid.Health=math.huge notify(t.Name.." agora é imortal.") end end end}
+    Commands.ungod = { category="Moderação", description="Remove a imortalidade.", aliases={"mortal"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChildOfClass("Humanoid")then t.Character.Humanoid.MaxHealth=100;t.Character.Humanoid.Health=100 notify(t.Name.." não é mais imortal.") end end end}
+    
+    ---------- Comandos de Servidor ----------
+    Commands.time = { category="Servidor", description="Muda a hora do dia para todos.", aliases={"hora"}, func=function(p,a) local time=tonumber(a[1]); if time and time>=0 and time<=24 then Lighting.ClockTime=time globalMessage("A hora foi alterada para "..time..":00.") end end}
+    Commands.gravity = { category="Servidor", description="Muda a gravidade para todos.", aliases={"gravidade"}, func=function(p,a) local g=tonumber(a[1]); if g then Workspace.Gravity=g globalMessage("A gravidade do servidor agora é "..g..".") end end}
+    Commands.ws = { category="Servidor", description="Muda a velocidade de todos.", aliases={"walkspeed"}, func=function(p,a) local spd=tonumber(a[1]) or 16; for _,player in ipairs(Players:GetPlayers()) do if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then player.Character.Humanoid.WalkSpeed = spd end end globalMessage("A velocidade de todos foi definida para "..spd..".") end}
+    Commands.jp = { category="Servidor", description="Muda o pulo de todos.", aliases={"jumppower"}, func=function(p,a) local pwr=tonumber(a[1]) or 50; for _,player in ipairs(Players:GetPlayers()) do if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then player.Character.Humanoid.JumpPower = pwr end end globalMessage("O pulo de todos foi definido para "..pwr..".") end}
+    Commands.message = { category="Servidor", description="Envia uma mensagem para todos.", aliases={"m", "msg"}, func=function(p,a) local msg = table.concat(a, " "); if msg ~= "" then globalMessage(msg) end end}
+    Commands.shutdown = { category="Servidor", description="Expulsa todos do servidor.", aliases={"desligar"}, func=function(p,a) globalMessage("O SERVIDOR SERÁ DESLIGADO EM 5 SEGUNDOS!"); task.wait(5); for _,t in ipairs(Players:GetPlayers()) do pcall(function() t:Kick("O servidor foi desligado por um Administrador.") end) end end}
+
+    ---------- Comandos de Diversão Global ----------
+    Commands.explode = { category="Diversão", description="Explode jogadores.", aliases={"explodir"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChild("HumanoidRootPart")then local ex=Instance.new("Explosion",Workspace);ex.Position=t.Character.HumanoidRootPart.Position;ex.BlastRadius=15;t.Character:BreakJoints() notify(t.Name.." virou poeira.")end end end}
+    Commands.fling = { category="Diversão", description="Arremessa jogadores para o alto.", aliases={"arremessar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character and t.Character:FindFirstChild("HumanoidRootPart")then local bv=Instance.new("BodyVelocity",t.Character.HumanoidRootPart);bv.MaxForce=Vector3.new(9e9,9e9,9e9);bv.Velocity=Vector3.new(math.random(-150,150),800,math.random(-150,150));Debris:AddItem(bv,0.2) notify(t.Name.." foi arremessado.")end end end}
+    Commands.btools = { category="Diversão", description="Dá ferramentas de construção a todos.", aliases={}, func=function(p,a) for _,t in ipairs(findPlayers(a[1] or "@all"))do if t.Backpack then Instance.new("HopperBin",t.Backpack).BinType=Enum.BinType.Grab;Instance.new("HopperBin",t.Backpack).BinType=Enum.BinType.Clone;Instance.new("HopperBin",t.Backpack).BinType=Enum.BinType.Hammer end end globalMessage("Ferramentas de construção foram distribuídas!") end}
+    Commands.clone = { category="Diversão", description="Cria clones de jogadores.", aliases={"clonar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1]))do if t.Character then local clone=t.Character:Clone();clone.Parent=Workspace;clone:MoveTo(t.Character.PrimaryPart.Position+Vector3.new(5,0,0));clone.Player=nil; notify("Clone de "..t.Name.." criado.")end end end}
+    Commands.sit = { category="Diversão", description="Faz todos sentarem.", aliases={"sentar"}, func=function(p,a) for _,t in ipairs(findPlayers(a[1] or "@all"))do if t.Character and t.Character:FindFirstChildOfClass("Humanoid") then t.Character.Humanoid.Sit = true end end globalMessage("Hora do descanso!") end}
+    
+    --==============================================================================--
+    --||                           CONSTRUTOR DA UI                               ||--
+    --==============================================================================--
+    local gui = Instance.new("ScreenGui", localPlayer.PlayerGui); gui.Name = "CalvoModGUI_Server"; gui.ResetOnSpawn = false; gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
     local toggleButton = Instance.new("TextButton", gui); toggleButton.Size = UDim2.new(0, 40, 0, 40); toggleButton.Position = UDim2.new(0, 15, 0.5, -20); toggleButton.AnchorPoint = Vector2.new(0, 0.5); toggleButton.Style = Enum.ButtonStyle.RobloxButton; toggleButton.Text = "C"; toggleButton.Font = Enum.Font.GothamBold; toggleButton.TextSize = 20
-    local mainFrame = Instance.new("Frame", gui); mainFrame.Size = UDim2.new(0, 600, 0, 400); mainFrame.Position = UDim2.new(0.5, 0, -0.5, 0); mainFrame.AnchorPoint = Vector2.new(0.5, 0); mainFrame.BackgroundColor3 = Color3.fromRGB(31, 31, 31); mainFrame.Draggable = true; mainFrame.Active = true; mainFrame.Visible = false
-    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(80, 80, 80)
+    
+    local mainFrame = Instance.new("Frame", gui); mainFrame.Size = UDim2.new(0, 600, 0, 400); mainFrame.Position = UDim2.new(0.5, 0, -0.5, 0); mainFrame.AnchorPoint = Vector2.new(0.5, 0); mainFrame.BackgroundColor3 = Color3.fromRGB(31, 31, 31); mainFrame.Draggable = true; mainFrame.Active = true; mainFrame.Visible = false; Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
     local titleBar = Instance.new("Frame", mainFrame); titleBar.Size = UDim2.new(1, 0, 0, 35); titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25); Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
-    local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, 0, 1, 0); titleLabel.Text = "CALVO MOD V5"; titleLabel.Font = Enum.Font.GothamBold; titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255); titleLabel.TextSize = 16; titleLabel.BackgroundTransparency = 1
-    local commandBar = Instance.new("TextBox", mainFrame); commandBar.Size = UDim2.new(1, -20, 0, 35); commandBar.Position = UDim2.new(0.5, 0, 1, -10); commandBar.AnchorPoint = Vector2.new(0.5, 1); commandBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40); commandBar.PlaceholderText = "Digite um comando..."; commandBar.Font = Enum.Font.Gotham; commandBar.TextSize = 16; commandBar.TextColor3 = Color3.fromRGB(230, 230, 230); commandBar.ClearTextOnFocus = false
-    Instance.new("UICorner", commandBar).CornerRadius = UDim.new(0, 6); local cbStroke = Instance.new("UIStroke", commandBar); cbStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; cbStroke.Color = Color3.fromRGB(88, 158, 255); cbStroke.Thickness = 1; local cbPadding = Instance.new("UIPadding", commandBar); cbPadding.PaddingLeft = UDim.new(0, 10); cbPadding.PaddingRight = UDim.new(0, 10)
+    local titleLabel = Instance.new("TextLabel", titleBar); titleLabel.Size = UDim2.new(1, 0, 1, 0); titleLabel.Text = "CALVO MOD - EDIÇÃO DE SERVIDOR"; titleLabel.Font = Enum.Font.GothamBold; titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255); titleLabel.TextSize = 16; titleLabel.BackgroundTransparency = 1
+    
+    local commandBar = Instance.new("TextBox", mainFrame); commandBar.Size = UDim2.new(1, -20, 0, 35); commandBar.Position = UDim2.new(0.5, 0, 1, -10); commandBar.AnchorPoint = Vector2.new(0.5, 1); commandBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45); commandBar.PlaceholderText = "Digite um comando..."; commandBar.Font = Enum.Font.Gotham; commandBar.TextSize = 16; commandBar.TextColor3 = Color3.fromRGB(230, 230, 230); commandBar.ClearTextOnFocus = false; Instance.new("UICorner", commandBar).CornerRadius = UDim.new(0, 6)
+
     local contentFrame = Instance.new("Frame", mainFrame); contentFrame.Size = UDim2.new(1, -20, 1, -65); contentFrame.Position = UDim2.new(0.5, 0, 0, 40); contentFrame.AnchorPoint = Vector2.new(0.5, 0); contentFrame.BackgroundTransparency = 1
-    local commandList = Instance.new("ScrollingFrame", contentFrame); commandList.Size = UDim2.new(1, 0, 1, 0); commandList.BackgroundColor3 = Color3.fromRGB(45, 45, 45); commandList.BorderSizePixel = 0
-    Instance.new("UICorner", commandList).CornerRadius = UDim.new(0, 6); local layout = Instance.new("UIGridLayout", commandList); layout.CellSize = UDim2.new(0, 180, 0, 80); layout.CellPadding = UDim2.new(0, 5, 0, 5); layout.SortOrder = Enum.SortOrder.Name
-    local function populateCommands() for _,v in ipairs(commandList:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end; for name, data in pairs(Commands) do local btn = Instance.new("TextButton", commandList); btn.Name = name; btn.Size = UDim2.new(0, 180, 0, 80); btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35); btn.Text = ""; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4); Instance.new("UIStroke", btn).Color = Color3.fromRGB(60,60,60); local cmdName = Instance.new("TextLabel", btn); cmdName.Size = UDim2.new(1, -10, 0, 20); cmdName.Position = UDim2.new(0.5, 0, 0, 5); cmdName.AnchorPoint = Vector2.new(0.5, 0); cmdName.Text = name; cmdName.Font = Enum.Font.GothamBold; cmdName.TextColor3 = Color3.fromRGB(88, 158, 255); cmdName.TextSize = 16; cmdName.BackgroundTransparency = 1; local desc = Instance.new("TextLabel", btn); desc.Size = UDim2.new(1, -10, 1, -30); desc.Position = UDim2.new(0.5, 0, 1, -5); desc.AnchorPoint = Vector2.new(0.5, 1); desc.Text = data.description; desc.Font = Enum.Font.Gotham; desc.TextColor3 = Color3.fromRGB(170, 170, 170); desc.TextSize = 12; desc.TextWrapped = true; desc.BackgroundTransparency = 1; btn.MouseButton1Click:Connect(function() commandBar.Text = name .. " "; commandBar:CaptureFocus() end) end end; populateCommands()
-    local function executeCommand(text) local parts = text:split(" "); local cmdName = table.remove(parts, 1):lower(); local foundCmd = Commands[cmdName]; if not foundCmd then for name, data in pairs(Commands) do for _, alias in ipairs(data.aliases or {}) do if alias:lower() == cmdName then foundCmd = data; break end end; if foundCmd then break end end end; if foundCmd then pcall(foundCmd.func, localPlayer, parts) else notify("Erro", "Comando desconhecido: " .. cmdName) end end
-    commandBar.FocusLost:Connect(function(enterPressed) if enterPressed and commandBar.Text ~= "" then executeCommand(commandBar.Text); commandBar.Text = "" end end)
-    local isOpen = false; toggleButton.MouseButton1Click:Connect(function() isOpen = not isOpen; mainFrame.Visible = true; local targetPos = isOpen and UDim2.new(0.5, 0, 0.5, -200) or UDim2.new(0.5, 0, -1, 0); mainFrame:TweenPosition(targetPos, "Out", "Quad", 0.4, true, function() if not isOpen then mainFrame.Visible = false end end) end)
-    local espGuiContainer = Instance.new("ScreenGui", localPlayer.PlayerGui); espGuiContainer.Name = "CalvoESP_Container"; espGuiContainer.ResetOnSpawn = false
-    RunService.RenderStepped:Connect(function() for player, gui in pairs(espElements) do gui:Destroy(); espElements[player] = nil end; if not espEnabled then return end; for _, player in ipairs(Players:GetPlayers()) do if player ~= localPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then local myHrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart"); if not myHrp then return end; local hrp, distance = player.Character.HumanoidRootPart, math.floor((player.Character.HumanoidRootPart.Position - myHrp.Position).Magnitude); local espGui = Instance.new("BillboardGui", espGuiContainer); espGui.Name = "CalvoESP_"..player.Name; espGui.Adornee = hrp; espGui.AlwaysOnTop = true; espGui.Size = UDim2.new(0, 150, 0, 50); espGui.StudsOffset = Vector3.new(0, 3, 0); local frame = Instance.new("Frame", espGui); frame.Size = UDim2.new(1,0,1,0); frame.BackgroundColor3 = Color3.fromRGB(10,10,10); frame.BackgroundTransparency = 0.4; Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 5); Instance.new("UIStroke", frame).Color = Color3.fromRGB(88, 158, 255); local nameLabel = Instance.new("TextLabel", frame); nameLabel.Size = UDim2.new(1, 0, 0.6, 0); nameLabel.Text = player.Name; nameLabel.Font = Enum.Font.GothamBold; nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255); nameLabel.TextSize = 16; nameLabel.BackgroundTransparency = 1; local distLabel = Instance.new("TextLabel", frame); distLabel.Size = UDim2.new(1, 0, 0.4, 0); distLabel.Position = UDim2.new(0, 0, 0.6, 0); distLabel.Font = Enum.Font.Gotham; distLabel.TextColor3 = Color3.fromRGB(200, 200, 200); distLabel.TextSize = 14; distLabel.BackgroundTransparency = 1; distLabel.Text = distance .. "m"; espElements[player] = espGui end end end)
-    if not CalvoRemote then notify("Aviso", "Handler do Servidor não detectado. Comandos de servidor estarão desativados.") else notify("Calvo Mod V5", "Conectado ao Handler do Servidor!") end
+    local commandList = Instance.new("ScrollingFrame", contentFrame); commandList.Size = UDim2.new(1, 0, 1, 0); commandList.BackgroundColor3 = Color3.fromRGB(45, 45, 45); commandList.BorderSizePixel = 0; Instance.new("UICorner", commandList).CornerRadius = UDim.new(0, 6)
+    local layout = Instance.new("UIGridLayout", commandList); layout.CellSize = UDim2.new(0, 180, 0, 80); layout.CellPadding = UDim2.new(0, 5, 0, 5); layout.SortOrder = Enum.SortOrder.Name
+
+    --==============================================================================--
+    --||                         LÓGICA E EXECUÇÃO                                ||--
+    --==============================================================================--
+    for name, data in pairs(Commands) do
+        local btn = Instance.new("TextButton", commandList); btn.Name = name; btn.Size = UDim2.new(0, 180, 0, 80); btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35); btn.Text = ""; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+        local cmdName = Instance.new("TextLabel", btn); cmdName.Size = UDim2.new(1, -10, 0, 20); cmdName.Position = UDim2.new(0.5, 0, 0, 5); cmdName.AnchorPoint = Vector2.new(0.5, 0); cmdName.Text = name; cmdName.Font = Enum.Font.GothamBold; cmdName.TextColor3 = Color3.fromRGB(88, 158, 255); cmdName.TextSize = 16; cmdName.BackgroundTransparency = 1
+        local desc = Instance.new("TextLabel", btn); desc.Size = UDim2.new(1, -10, 1, -30); desc.Position = UDim2.new(0.5, 0, 1, -5); desc.AnchorPoint = Vector2.new(0.5, 1); desc.Text = data.description; desc.Font = Enum.Font.Gotham; desc.TextColor3 = Color3.fromRGB(170, 170, 170); desc.TextSize = 12; desc.TextWrapped = true; desc.BackgroundTransparency = 1
+        btn.MouseButton1Click:Connect(function() commandBar.Text = name .. " "; commandBar:CaptureFocus() end)
+    end
+    
+    local function executeCommand(text)
+        local parts = text:split(" "); local cmdName = table.remove(parts, 1):lower()
+        local foundCmd = nil; if Commands[cmdName] then foundCmd = Commands[cmdName] else for n,d in pairs(Commands) do for _,a in ipairs(d.aliases or {}) do if a:lower() == cmdName then foundCmd=d;break end end if foundCmd then break end end end
+        if foundCmd then local s,e=pcall(foundCmd.func, localPlayer, parts); if not s then notify("Erro no comando: "..tostring(e)) end else notify("Comando desconhecido: " .. cmdName) end
+    end
+
+    commandBar.FocusLost:Connect(function(enter) if enter and commandBar.Text ~= "" then executeCommand(commandBar.Text); commandBar.Text = "" end end)
+    
+    local isOpen = false
+    toggleButton.MouseButton1Click:Connect(function()
+        isOpen = not isOpen; mainFrame.Visible = true
+        local targetPos = isOpen and UDim2.new(0.5, 0, 0.5, -200) or UDim2.new(0.5, 0, -1, 0)
+        mainFrame:TweenPosition(targetPos, "Out", "Quad", 0.4, true, function() if not isOpen then mainFrame.Visible = false end end)
+    end)
 end)
-pcall(mainThread)
+
+mainThread()
