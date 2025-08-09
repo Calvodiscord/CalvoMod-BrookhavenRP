@@ -1,9 +1,9 @@
 --[[
-    SCRIPT: Painel CALVO MOD
+    SCRIPT: Painel CALVO MOD (Versão Corrigida)
     DESCRIÇÃO: Cria uma interface de mod totalmente funcional no Roblox,
     gerada e controlada por este único script.
     AUTOR: [Seu Nome/Pseudônimo Aqui]
-    VERSÃO: 1.0
+    VERSÃO: 1.1 - Corrigido erro de Enum.Font inválido.
 
     INSTRUÇÕES:
     1. Crie um 'LocalScript' em 'StarterPlayer.StarterPlayerScripts'.
@@ -22,7 +22,6 @@ local playerGui = localPlayer:WaitForChild("PlayerGui")
 local featureStates = {
     teleport = false,
     godmode = false,
-
     fly = false,
     noclip = false,
 }
@@ -238,7 +237,8 @@ local function createToggleOption(parent, text, featureName)
     local label = Instance.new("TextLabel")
     label.Name = "Label"
     label.Text = text
-    label.Font = Enum.Font.SourceSansSemiBold
+    -- [[ CORREÇÃO ABAIXO ]] --
+    label.Font = Enum.Font.SourceSansBold -- Alterado de SourceSansSemiBold para SourceSansBold
     label.TextSize = 14
     label.TextColor3 = Color3.fromRGB(220, 220, 220)
     label.BackgroundTransparency = 1
@@ -512,8 +512,11 @@ end)
 -- --- Funcionalidade da Lista de Jogadores ---
 local function renderPlayerList()
     -- Limpa a lista antiga
-    playerListContainer:ClearAllChildren()
-    Instance.new("UIListLayout", playerListContainer).Padding = UDim.new(0, 4) -- Recria o layout
+    for _, child in ipairs(playerListContainer:GetChildren()) do
+        if not child:IsA("UILayout") then
+            child:Destroy()
+        end
+    end
 
     local allPlayers = Players:GetPlayers()
     if #allPlayers == 0 then
@@ -586,4 +589,4 @@ screenGui.Parent = playerGui
 
 -- Seleciona a primeira aba por padrão
 switchTab("main-content")
-print("Painel CALVO MOD carregado com sucesso.")
+print("Painel CALVO MOD (Corrigido) carregado com sucesso.")
