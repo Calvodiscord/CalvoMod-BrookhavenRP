@@ -8,7 +8,7 @@ local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 -- Palavra-chave para ativar a análise
-local TRIGGER_COMMAND = "/analisar"
+local TRIGGER_COMMAND = "analisar"
 
 --======= FUNÇÃO DE ANÁLISE "INTELIGENTE" =======--
 
@@ -93,77 +93,58 @@ local function analyzeGame()
     return table.concat(info, "\n")
 end
 
---======= LÓGICA DE NOTIFICAÇÃO E ATIVAÇÃO =======--
+--======= CRIAÇÃO DA INTERFACE (GUI) =======--
+local function createAnalyzerPanel()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "GameAnalyzerGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
 
-local function runAnalysisProcess()
-    -- Cria a interface da notificação
-    local notificationGui = Instance.new("ScreenGui")
-    notificationGui.Name = "AnalyzerNotification"
-    notificationGui.ResetOnSpawn = false
-    notificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    notificationGui.Parent = playerGui
+    local mainPanel = Instance.new("Frame"); mainPanel.Size = UDim2.new(0, 450, 0, 400); mainPanel.Position = UDim2.new(0.5, 0, 0.5, 0); mainPanel.AnchorPoint = Vector2.new(0.5, 0.5); mainPanel.BackgroundColor3 = Color3.fromRGB(30, 32, 40); mainPanel.Parent = screenGui;
+    Instance.new("UICorner", mainPanel).CornerRadius = UDim.new(0, 8);
+    Instance.new("UIStroke", mainPanel).Color = Color3.fromRGB(100, 100, 120);
 
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0, 300, 0, 50)
-    label.Position = UDim2.new(0.5, 0, 0, -100) -- Começa fora da tela
-    label.AnchorPoint = Vector2.new(0.5, 0)
-    label.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
-    label.Font = Enum.Font.SourceSansBold
-    label.TextColor3 = Color3.fromRGB(255, 255, 255)
-    label.TextSize = 16
-    label.Parent = notificationGui
-    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 8)
-    local stroke = Instance.new("UIStroke", label)
+    local header = Instance.new("Frame"); header.Name = "Header"; header.Size = UDim2.new(1, 0, 0, 35); header.BackgroundColor3 = Color3.fromRGB(40, 42, 50); header.Parent = mainPanel;
+    local title = Instance.new("TextLabel"); title.Size = UDim2.new(1, 0, 1, 0); title.Text = "Analisador de Jogo"; title.Font = Enum.Font.SourceSansBold; title.TextSize = 16; title.TextColor3 = Color3.fromRGB(220, 220, 220); title.BackgroundTransparency = 1; title.Parent = header;
 
-    -- Animações de entrada e saída
-    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-    local tweenIn = game:GetService("TweenService"):Create(label, tweenInfo, {Position = UDim2.new(0.5, 0, 0, 20)})
-    local tweenOut = game:GetService("TweenService"):Create(label, tweenInfo, {Position = UDim2.new(0.5, 0, 0, -100)})
-
-    -- Etapa 1: Mostrar "Analisando..."
-    label.Text = "Analisando o jogo..."
-    stroke.Color = Color3.fromRGB(80, 150, 200) -- Azul
-    tweenIn:Play()
-    tweenIn.Completed:Wait() -- Espera a animação de entrada terminar
-
-    -- Etapa 2: Fazer a análise e copiar
-    task.wait(0.2) -- Pequena pausa para o usuário ler
-    local analysisResult = analyzeGame()
-    local success = false
-    if setclipboard then
-        setclipboard(analysisResult)
-        success = true
-    end
-
-    -- Etapa 3: Mostrar resultado
-    if success then
-        label.Text = "Análise Concluída e Copiada!"
-        stroke.Color = Color3.fromRGB(80, 180, 80) -- Verde
-    else
-        label.Text = "ERRO: 'setclipboard' não suportado!"
-        stroke.Color = Color3.fromRGB(200, 80, 80) -- Vermelho
-    end
+    local resultFrame = Instance.new("ScrollingFrame"); resultFrame.Size = UDim2.new(1, -20, 1, -80); resultFrame.Position = UDim2.new(0.5, 0, 0, 40); resultFrame.AnchorPoint = Vector2.new(0.5, 0); resultFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 28); resultFrame.BorderSizePixel = 0; resultFrame.ScrollBarThickness = 6; resultFrame.Parent = mainPanel;
+    Instance.new("UICorner", resultFrame).CornerRadius = UDim.new(0, 6);
     
-    -- Etapa 4: Esperar e sair
-    task.wait(3)
-    tweenOut:Play()
-    tweenOut.Completed:Wait()
-    notificationGui:Destroy()
+    local resultLabel = Instance.new("TextLabel"); resultLabel.Size = UDim2.new(1, -10, 0, 0); resultLabel.AutomaticSize = Enum.AutomaticSize.Y; resultLabel.Text = "Digite '"..TRIGGER_COMMAND.."' na caixa abaixo e pressione Enter para iniciar."; resultLabel.Font = Enum.Font.Code; resultLabel.TextSize = 14; resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200); resultLabel.BackgroundTransparency = 1; resultLabel.TextXAlignment = Enum.TextXAlignment.Left; resultLabel.TextYAlignment = Enum.TextYAlignment.Top; resultLabel.Parent = resultFrame;
+    Instance.new("UIPadding", resultLabel).Padding = UDim.new(0, 5);
+
+    local commandInput = Instance.new("TextBox"); commandInput.Size = UDim2.new(1, -20, 0, 30); commandInput.Position = UDim2.new(0.5, 0, 1, -10); commandInput.AnchorPoint = Vector2.new(0.5, 1); commandInput.BackgroundColor3 = Color3.fromRGB(45, 45, 55); commandInput.Font = Enum.Font.SourceSans; commandInput.TextSize = 14; commandInput.TextColor3 = Color3.fromRGB(220, 220, 220); commandInput.PlaceholderText = "Digite '"..TRIGGER_COMMAND.."' e pressione Enter"; commandInput.ClearTextOnFocus = false; commandInput.Parent = mainPanel;
+    Instance.new("UICorner", commandInput).CornerRadius = UDim.new(0, 6);
+
+    -- Funcionalidades
+    commandInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed and commandInput.Text:lower() == TRIGGER_COMMAND then
+            -- Feedback inicial
+            resultLabel.Text = "Analisando, por favor aguarde..."
+            resultFrame.CanvasPosition = Vector2.new(0, 0)
+            task.wait(0.2)
+            
+            -- Análise e cópia
+            local analysisResult = analyzeGame()
+            local finalMessage = analysisResult
+            
+            if setclipboard then
+                setclipboard(analysisResult)
+                finalMessage = analysisResult .. "\n\n[Resultado copiado para a área de transferência!]"
+            else
+                finalMessage = analysisResult .. "\n\n[ERRO: 'setclipboard' não suportado. Copie manualmente.]"
+            end
+            
+            -- Exibir resultado final e limpar
+            resultLabel.Text = finalMessage
+            commandInput.Text = ""
+        end
+    end)
+
+    local function makeDraggable(trigger, target) local dragging, dragStart, startPos; trigger.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, dragStart, startPos = true, input.Position, target.Position; local conn; conn = input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end end) end end); game:GetService("UserInputService").InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end) end
+    makeDraggable(header, mainPanel)
 end
 
--- Escuta por novas mensagens no chat
-localPlayer.Chatted:Connect(function(message)
-    if message:lower() == TRIGGER_COMMAND then
-        -- Tenta apagar a mensagem do chat
-        pcall(function()
-            local chatService = require(game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("ChatServiceRunner"))
-            local speaker = chatService:GetSpeaker(localPlayer.Name)
-            speaker:SayMessage("", "All", true)
-        end)
-        
-        -- Inicia o processo de análise com feedback visual
-        runAnalysisProcess()
-    end
-end)
-
-print("Analisador de Jogo por Chat ativado. Digite '" .. TRIGGER_COMMAND .. "' no chat para usar.")
+-- Iniciar
+createAnalyzerPanel()
