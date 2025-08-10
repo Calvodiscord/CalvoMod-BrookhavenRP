@@ -1,4 +1,4 @@
---======= SERVIÇOS E VARIÁVEIS GLOBAIS =======--
+--======= SERVIços E VARIÁVEIS GLOBAIS =======--
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,7 +18,7 @@ local function analyzeGame()
     end
 
     add("--- [ ANÁLISE DO JOGO INICIADA ] ---")
-    add(os.date("!*t")) -- Adiciona data e hora para referência
+    add("Data da Análise (UTC): " .. os.date("!*t").day .. "/" .. os.date("!*t").month .. "/" .. os.date("!*t").year)
     add("")
 
     -- Seção 1: Informações Gerais do Jogo
@@ -32,16 +32,16 @@ local function analyzeGame()
     add("")
 
     -- Seção 2: Estrutura do Workspace
-    add("--- 2. ESTRUTURA DO WORKSPACE ---")
+    add("--- 2. ESTRUTURA DO WORKSPACE (Pastas Principais) ---")
     for _, child in ipairs(workspace:GetChildren()) do
-        if not child:IsA("Terrain") and not child:IsA("Camera") then -- Ignorar itens comuns
+        if not child:IsA("Terrain") and not child:IsA("Camera") and #child:GetChildren() > 0 then -- Apenas mostra itens que contêm outros itens (como pastas)
             add("- " .. child.Name .. " (" .. child.ClassName .. ")")
         end
     end
     add("")
 
     -- Seção 3: Personagem do Jogador
-    add("--- 3. PERSONAGEM DO JOGADOR ---")
+    add("--- 3. PERSONAGEM DO JOGADOR ("..localPlayer.Name..") ---")
     local character = localPlayer.Character
     if character then
         for _, child in ipairs(character:GetChildren()) do
@@ -94,7 +94,12 @@ end
 
 --======= CRIAÇÃO DA INTERFACE (GUI) =======--
 local function createAnalyzerPanel()
-    local screenGui = Instance.new("ScreenGui"); screenGui.Name = "GameAnalyzerGUI"; screenGui.ResetOnSpawn = false; screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; screenGui.Parent = playerGui;
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "GameAnalyzerGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    -- **[CORREÇÃO PRINCIPAL] Adiciona a GUI à tela do jogador.**
+    screenGui.Parent = playerGui
 
     local mainPanel = Instance.new("Frame"); mainPanel.Size = UDim2.new(0, 450, 0, 500); mainPanel.Position = UDim2.new(0.5, 0, 0.5, 0); mainPanel.AnchorPoint = Vector2.new(0.5, 0.5); mainPanel.BackgroundColor3 = Color3.fromRGB(30, 32, 40); mainPanel.Parent = screenGui;
     Instance.new("UICorner", mainPanel).CornerRadius = UDim.new(0, 8);
@@ -113,18 +118,33 @@ local function createAnalyzerPanel()
     local buttonLayout = Instance.new("UIListLayout"); buttonLayout.FillDirection = Enum.FillDirection.Horizontal; buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center; buttonLayout.Padding = UDim.new(0, 10); buttonLayout.Parent = buttonFrame;
     
     local analyzeButton = Instance.new("TextButton"); analyzeButton.Name = "AnalyzeButton"; analyzeButton.Size = UDim2.new(0.5, -5, 1, 0); analyzeButton.Text = "Analisar Jogo"; analyzeButton.Font = Enum.Font.SourceSansBold; analyzeButton.TextSize = 14; analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200); analyzeButton.TextColor3 = Color3.fromRGB(255, 255, 255); analyzeButton.Parent = buttonFrame; Instance.new("UICorner", analyzeButton).CornerRadius = UDim.new(0, 6);
-    local copyButton = Instance.new("TextButton"); copyButton.Name = "CopyButton"; copyButton.Size = UDim2.new(0.5, -5, 1, 0); copyButton.Text = "Copiar"; copyButton.Font = Enum.Font.SourceSansBold; copyButton.TextSize = 14; copyButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80); copyButton.TextColor3 = Color3.fromRGB(255, 255, 255); copyButton.Parent = buttonFrame; Instance.new("UICorner", copyButton).CornerRadius = UDim.new(0, 6);
+    local copyButton = Instance.new("TextButton"); copyButton.Name = "CopyButton"; copyButton.Size = UDim2.new(0.5, -5, 1, 0); copyButton.Text = "Copiar"; copyButton.Font = Enum.Font.SourceSansBold; copyButton.TextSize = 14; copyButton.TextColor3 = Color3.fromRGB(255, 255, 255); copyButton.Parent = buttonFrame; Instance.new("UICorner", copyButton).CornerRadius = UDim.new(0, 6);
     
+    -- **[MELHORIA] Começa desativado**
+    copyButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80);
+    copyButton.AutoButtonColor = false
+    local analysisDone = false
+
     -- Funcionalidades
     analyzeButton.MouseButton1Click:Connect(function()
+        analyzeButton.Text = "Analisando..."
         resultLabel.Text = "Analisando, por favor aguarde..."
-        task.wait(0.1) -- Dá tempo para a UI atualizar
+        task.wait(0.2) -- Dá tempo para a UI atualizar
+        
         local analysisResult = analyzeGame()
         resultLabel.Text = analysisResult
         resultFrame.CanvasPosition = Vector2.new(0, 0)
+        
+        -- **[MELHORIA] Ativa o botão de copiar**
+        analysisDone = true
+        copyButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+        copyButton.AutoButtonColor = true
+        analyzeButton.Text = "Analisar Novamente"
     end)
 
     copyButton.MouseButton1Click:Connect(function()
+        if not analysisDone then return end -- Não faz nada se a análise não foi feita
+
         if setclipboard then
             setclipboard(resultLabel.Text)
             copyButton.Text = "Copiado!"
