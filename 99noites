@@ -1,241 +1,145 @@
---======= CONFIGURAÇÃO =======--
-local GAME_ID = 7954620862
-local VALID_KEYS = {
-    ["8X4-N7Z-K2P-QW9"] = true,
-    ["J6F-R3V-T8C-Y1M"] = true,
-    ["B5H-L9S-A4G-E7D"] = true,
-    ["P2W-K8N-U5X-F3Z"] = true,
-    ["V9C-M1R-G6T-H4B"] = true
-}
-
 --======= SERVIÇOS E VARIÁVEIS GLOBAIS =======--
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
-local camera = workspace.CurrentCamera
 
-local espElements = {}
-local espConnection = nil
-local originalFogEnd, originalAmbient, originalOutdoorAmbient
+--======= FUNÇÃO DE ANÁLISE "INTELIGENTE" =======--
 
--- Salvar configurações originais de forma segura
-pcall(function()
-    originalFogEnd = Lighting.FogEnd
-    originalAmbient = Lighting.Ambient
-    originalOutdoorAmbient = Lighting.OutdoorAmbient
-end)
+local function analyzeGame()
+    local info = {} -- Usaremos uma tabela para construir a string de forma eficiente
 
+    local function add(text)
+        table.insert(info, text)
+    end
 
---======= LÓGICA DAS FUNCIONALIDADES (ROBUSTA) =======--
-local function getCharacter()
-    return localPlayer.Character
-end
+    add("--- [ ANÁLISE DO JOGO INICIADA ] ---")
+    add(os.date("!*t")) -- Adiciona data e hora para referência
+    add("")
 
-local function setInfiniteStamina(enabled)
-    pcall(function()
-        local char = getCharacter()
-        if char then
-            local stamina = char:WaitForChild("Stamina", 1) -- Espera no máximo 1 segundo
-            if stamina then
-                stamina.Disabled = enabled
-            end
+    -- Seção 1: Informações Gerais do Jogo
+    add("--- 1. INFORMAÇÕES GERAIS ---")
+    local success, result = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
+    if success and result then
+        add("Nome do Jogo: " .. result.Name)
+    end
+    add("Place ID: " .. tostring(game.PlaceId))
+    add("Game ID (Universe ID): " .. tostring(game.GameId))
+    add("")
+
+    -- Seção 2: Estrutura do Workspace
+    add("--- 2. ESTRUTURA DO WORKSPACE ---")
+    for _, child in ipairs(workspace:GetChildren()) do
+        if not child:IsA("Terrain") and not child:IsA("Camera") then -- Ignorar itens comuns
+            add("- " .. child.Name .. " (" .. child.ClassName .. ")")
         end
-    end)
-end
+    end
+    add("")
 
-local function setInfiniteBattery(enabled)
-    pcall(function()
-        local char = getCharacter()
-        local flashlight = localPlayer.Backpack:FindFirstChild("Flashlight") or (char and char:FindFirstChild("Flashlight"))
-        if flashlight then
-            local lightScript = flashlight:WaitForChild("Handle", 1):FindFirstChild("LightScript")
-            if lightScript then
-                lightScript.Disabled = enabled
-            end
-        end
-    end)
-end
-
-local function setGodMode(enabled)
-    pcall(function()
-        local char = getCharacter()
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, not enabled)
-        end
-    end)
-end
-
-local function setWalkSpeed(speed)
-    pcall(function()
-        local char = getCharacter()
-        if char and char:FindFirstChild("Humanoid") then
-            char.Humanoid.WalkSpeed = speed
-        end
-    end)
-end
-
-local function setRemoveFog(enabled)
-    pcall(function()
-        if enabled then
-            Lighting.FogEnd = 100000
-            Lighting.Ambient = Color3.fromRGB(128, 128, 128)
-            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
-        else
-            Lighting.FogEnd = originalFogEnd
-            Lighting.Ambient = originalAmbient
-            Lighting.OutdoorAmbient = originalOutdoorAmbient
-        end
-    end)
-end
-
-local function setESP(enabled)
-    if enabled then
-        if not espConnection then
-            espConnection = RunService.RenderStepped:Connect(function()
-                local entities = {}
-                
-                -- Busca segura por pastas
-                local monstersFolder = workspace:FindFirstChild("Monsters")
-                local itemsFolder = workspace:FindFirstChild("Items")
-                
-                if monstersFolder then
-                    for _, monster in ipairs(monstersFolder:GetDescendants()) do
-                        if monster:IsA("Model") and monster:FindFirstChild("HumanoidRootPart") then
-                             table.insert(entities, {obj = monster, name = monster.Name, color = Color3.fromRGB(255, 50, 50)})
-                        end
-                    end
-                end
-
-                if itemsFolder then
-                    for _, item in ipairs(itemsFolder:GetChildren()) do
-                        if item.Name == "Battery" and item:FindFirstChild("Handle") then
-                            table.insert(entities, {obj = item, name = "Bateria", color = Color3.fromRGB(255, 255, 0)})
-                        end
-                    end
-                end
-
-                local existingEntities = {}
-                for _, entityData in ipairs(entities) do
-                    local obj = entityData.obj
-                    local primaryPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Handle")
-                    if primaryPart and getCharacter() then
-                        existingEntities[obj] = true
-                        local esp = espElements[obj]
-                        if not esp then
-                            esp = Instance.new("BillboardGui")
-                            esp.Name = "ESP_GUI"
-                            esp.Adornee = primaryPart
-                            esp.Size = UDim2.new(0, 200, 0, 50)
-                            esp.AlwaysOnTop = true
-                            esp.LightInfluence = 0
-                            esp.ResetOnSpawn = false
-                            
-                            local label = Instance.new("TextLabel"); label.Size = UDim2.new(1,0,1,0); label.Text = entityData.name; label.Font = Enum.Font.SourceSansBold; label.TextSize = 16; label.TextColor3 = entityData.color; label.TextStrokeTransparency = 0; label.BackgroundTransparency = 1; label.Parent = esp
-                            
-                            esp.Parent = playerGui
-                            espElements[obj] = esp
-                        end
-                        local distance = math.floor((camera.CFrame.Position - primaryPart.Position).Magnitude)
-                        esp.TextLabel.Text = entityData.name .. " [" .. distance .. "m]"
-                    end
-                end
-
-                for obj, esp in pairs(espElements) do if not existingEntities[obj] then esp:Destroy(); espElements[obj] = nil end end
-            end)
+    -- Seção 3: Personagem do Jogador
+    add("--- 3. PERSONAGEM DO JOGADOR ---")
+    local character = localPlayer.Character
+    if character then
+        for _, child in ipairs(character:GetChildren()) do
+            add("- " .. child.Name .. " (" .. child.ClassName .. ")")
         end
     else
-        if espConnection then espConnection:Disconnect(); espConnection = nil end
-        for _, esp in pairs(espElements) do if esp then esp:Destroy() end end
-        espElements = {}
+        add("Personagem não encontrado.")
     end
-end
+    add("")
+    
+    -- Seção 4: Mochila (Backpack)
+    add("--- 4. ITENS NA MOCHILA ---")
+    local backpack = localPlayer:FindFirstChild("Backpack")
+    if backpack then
+        local items = backpack:GetChildren()
+        if #items > 0 then
+            for _, item in ipairs(items) do
+                add("- " .. item.Name .. " (" .. item.ClassName .. ")")
+            end
+        else
+            add("Nenhum item na mochila.")
+        end
+    else
+        add("Mochila não encontrada.")
+    end
+    add("")
 
-local function giveTeleportTool()
-    if localPlayer.Backpack:FindFirstChild("Teleportador") or (getCharacter() and getCharacter():FindFirstChild("Teleportador")) then return end
+    -- Seção 5: ReplicatedStorage (Eventos, Módulos, etc.)
+    add("--- 5. REPLICATEDSTORAGE ---")
+    for _, child in ipairs(ReplicatedStorage:GetChildren()) do
+        add("- " .. child.Name .. " (" .. child.ClassName .. ")")
+    end
+    add("")
 
-    local tool = Instance.new("Tool"); tool.Name = "Teleportador"; tool.ToolTip = "Clique para teleportar"; tool.CanBeDropped = false; tool.RequiresHandle = false
-    tool.Activated:Connect(function() local mouse = localPlayer:GetMouse(); if mouse.Target and getCharacter() then local rootPart = getCharacter():FindFirstChild("HumanoidRootPart"); if rootPart then rootPart.CFrame = CFrame.new(mouse.Hit.p + Vector3.new(0, 3, 0)) end end end)
-    tool.Parent = localPlayer.Backpack
+    -- Seção 6: Configurações de Iluminação
+    add("--- 6. CONFIGURAÇÕES DE ILUMINAÇÃO (LIGHTING) ---")
+    add("Ambient: " .. tostring(Lighting.Ambient))
+    add("OutdoorAmbient: " .. tostring(Lighting.OutdoorAmbient))
+    add("Brightness: " .. tostring(Lighting.Brightness))
+    add("FogEnd: " .. tostring(Lighting.FogEnd))
+    add("FogStart: " .. tostring(Lighting.FogStart))
+    add("FogColor: " .. tostring(Lighting.FogColor))
+    add("")
+    
+    add("--- [ ANÁLISE CONCLUÍDA ] ---")
+
+    return table.concat(info, "\n")
 end
 
 
 --======= CRIAÇÃO DA INTERFACE (GUI) =======--
-local function createMainPanel()
-    local screenGui = Instance.new("ScreenGui"); screenGui.Name = "FuturisticUI"; screenGui.ResetOnSpawn = false; screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; screenGui.Parent = playerGui
+local function createAnalyzerPanel()
+    local screenGui = Instance.new("ScreenGui"); screenGui.Name = "GameAnalyzerGUI"; screenGui.ResetOnSpawn = false; screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; screenGui.Parent = playerGui;
 
-    local modPanel = Instance.new("Frame"); modPanel.Name = "ModPanel"; modPanel.Size = UDim2.new(0, 320, 0, 400); modPanel.Position = UDim2.new(0.5, 0, 0.5, 0); modPanel.AnchorPoint = Vector2.new(0.5, 0.5); modPanel.BackgroundColor3 = Color3.fromRGB(20, 22, 28); modPanel.BackgroundTransparency = 0.2; modPanel.ClipsDescendants = true; modPanel.Parent = screenGui
-    Instance.new("UICorner", modPanel).CornerRadius = UDim.new(0, 8)
-    Instance.new("UIStroke", modPanel).Color = Color3.fromRGB(0, 255, 255);
-    local gradient = Instance.new("UIGradient"); gradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 22, 28)), ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 32, 40))}; gradient.Rotation = 90; gradient.Parent = modPanel
+    local mainPanel = Instance.new("Frame"); mainPanel.Size = UDim2.new(0, 450, 0, 500); mainPanel.Position = UDim2.new(0.5, 0, 0.5, 0); mainPanel.AnchorPoint = Vector2.new(0.5, 0.5); mainPanel.BackgroundColor3 = Color3.fromRGB(30, 32, 40); mainPanel.Parent = screenGui;
+    Instance.new("UICorner", mainPanel).CornerRadius = UDim.new(0, 8);
+    Instance.new("UIStroke", mainPanel).Color = Color3.fromRGB(100, 100, 120);
 
-    local header = Instance.new("Frame"); header.Name = "Header"; header.Size = UDim2.new(1, 0, 0, 35); header.BackgroundColor3 = Color3.fromRGB(255, 255, 255); header.BackgroundTransparency = 0.95; header.Parent = modPanel
-    local headerLayout = Instance.new("UIListLayout"); headerLayout.FillDirection = Enum.FillDirection.Horizontal; headerLayout.VerticalAlignment = Enum.VerticalAlignment.Center; headerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right; headerLayout.Padding = UDim.new(0, 10); headerLayout.Parent = header
-    Instance.new("UIPadding", header).PaddingRight = UDim.new(0, 5)
-    local title = Instance.new("TextLabel"); title.Name = "Title"; title.Size = UDim2.new(1, -70, 1, 0); title.Text = "  99 FLORESTA"; title.Font = Enum.Font.Michroma; title.TextSize = 14; title.TextColor3 = Color3.fromRGB(0, 255, 255); title.BackgroundTransparency = 1; title.TextXAlignment = Enum.TextXAlignment.Left; title.Parent = header
-    local minimizeButton = Instance.new("TextButton"); minimizeButton.Name = "Minimize"; minimizeButton.Size = UDim2.new(0, 20, 0, 20); minimizeButton.Text = "—"; minimizeButton.Font = Enum.Font.SourceSansBold; minimizeButton.TextSize = 16; minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 100); minimizeButton.BackgroundTransparency = 1; minimizeButton.Parent = header
-    local closeButton = Instance.new("TextButton"); closeButton.Name = "Close"; closeButton.Size = UDim2.new(0, 20, 0, 20); closeButton.Text = "X"; closeButton.Font = Enum.Font.SourceSansBold; closeButton.TextSize = 16; closeButton.TextColor3 = Color3.fromRGB(255, 100, 100); closeButton.BackgroundTransparency = 1; closeButton.Parent = header
+    local header = Instance.new("Frame"); header.Name = "Header"; header.Size = UDim2.new(1, 0, 0, 35); header.BackgroundColor3 = Color3.fromRGB(40, 42, 50); header.Parent = mainPanel;
+    local title = Instance.new("TextLabel"); title.Size = UDim2.new(1, 0, 1, 0); title.Text = "Analisador de Jogo"; title.Font = Enum.Font.SourceSansBold; title.TextSize = 16; title.TextColor3 = Color3.fromRGB(220, 220, 220); title.BackgroundTransparency = 1; title.Parent = header;
 
-    local contentFrame = Instance.new("ScrollingFrame"); contentFrame.Name = "Content"; contentFrame.Size = UDim2.new(1, -20, 1, -45); contentFrame.Position = UDim2.new(0.5, 0, 0, 40); contentFrame.AnchorPoint = Vector2.new(0.5, 0); contentFrame.BackgroundTransparency = 1; contentFrame.BorderSizePixel = 0; contentFrame.ScrollBarThickness = 4; contentFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 255); contentFrame.Parent = modPanel
-    local contentLayout = Instance.new("UIListLayout"); contentLayout.Padding = UDim.new(0, 8); contentLayout.Parent = contentFrame
-
-    local minimizedPanel = Instance.new("TextButton"); minimizedPanel.Name = "Minimized"; minimizedPanel.Size = UDim2.new(0, 120, 0, 30); minimizedPanel.Position = UDim2.new(1, -130, 1, -40); minimizedPanel.Text = "99 MOD"; minimizedPanel.Font = Enum.Font.Michroma; minimizedPanel.TextSize = 12; minimizedPanel.TextColor3 = Color3.fromRGB(0, 255, 255); minimizedPanel.BackgroundColor3 = Color3.fromRGB(20, 22, 28); minimizedPanel.BackgroundTransparency = 0.2; minimizedPanel.Visible = false; minimizedPanel.Parent = screenGui; Instance.new("UICorner", minimizedPanel).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", minimizedPanel).Color = Color3.fromRGB(0, 255, 255);
-
-    local function createToggle(parent, text, callback) local f=Instance.new("Frame");f.Size=UDim2.new(1,0,0,35);f.BackgroundColor3=Color3.fromRGB(255,255,255);f.BackgroundTransparency=0.9;f.Parent=parent;Instance.new("UICorner",f).CornerRadius=UDim.new(0,6);local l=Instance.new("UIListLayout");l.FillDirection=Enum.FillDirection.Horizontal;l.VerticalAlignment=Enum.VerticalAlignment.Center;l.HorizontalAlignment=Enum.HorizontalAlignment.Right;l.Padding=UDim.new(0,12);l.Parent=f;local lbl=Instance.new("TextLabel");lbl.Text=text;lbl.Font=Enum.Font.SourceSans;lbl.TextSize=14;lbl.TextColor3=Color3.fromRGB(220,220,220);lbl.BackgroundTransparency=1;lbl.TextXAlignment=Enum.TextXAlignment.Left;lbl.Size=UDim2.new(1,-70,1,0);lbl.Parent=f;Instance.new("UIPadding",lbl).PaddingLeft=UDim.new(0,12);local b=Instance.new("TextButton");b.Size=UDim2.new(0,40,0,20);b.Text="";b.BackgroundColor3=Color3.fromRGB(255,80,80);b.Parent=f;Instance.new("UICorner",b).CornerRadius=UDim.new(1,0);local h=Instance.new("Frame");h.Size=UDim2.new(0,16,0,16);h.Position=UDim2.new(0,2,0.5,0);h.AnchorPoint=Vector2.new(0,0.5);h.BackgroundColor3=Color3.fromRGB(255,255,255);h.Parent=b;Instance.new("UICorner",h).CornerRadius=UDim.new(1,0);local e=false;b.MouseButton1Click:Connect(function()e=not e;local cl=e and Color3.fromRGB(80,255,80)or Color3.fromRGB(255,80,80);local ps=e and UDim2.new(1,-18,0.5,0)or UDim2.new(0,2,0.5,0);TweenService:Create(b,TweenInfo.new(0.2),{BackgroundColor3=cl}):Play();TweenService:Create(h,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{Position=ps}):Play();callback(e)end) end
-    local function createButton(parent, text, callback) local b=Instance.new("TextButton");b.Size=UDim2.new(1,0,0,35);b.Text=text;b.Font=Enum.Font.SourceSansBold;b.TextSize=14;b.TextColor3=Color3.fromRGB(220,220,220);b.BackgroundColor3=Color3.fromRGB(0,255,255);b.BackgroundTransparency=0.8;b.Parent=parent;Instance.new("UICorner",b).CornerRadius=UDim.new(0,6);b.MouseButton1Click:Connect(callback) end
+    local resultFrame = Instance.new("ScrollingFrame"); resultFrame.Size = UDim2.new(1, -20, 1, -90); resultFrame.Position = UDim2.new(0.5, 0, 0, 45); resultFrame.AnchorPoint = Vector2.new(0.5, 0); resultFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 28); resultFrame.BorderSizePixel = 0; resultFrame.ScrollBarThickness = 6; resultFrame.Parent = mainPanel;
+    Instance.new("UICorner", resultFrame).CornerRadius = UDim.new(0, 6);
     
-    createToggle(contentFrame, "ESP (Monstros/Itens)", setESP)
-    createToggle(contentFrame, "Bateria Infinita", setInfiniteBattery)
-    createToggle(contentFrame, "Estamina Infinita", setInfiniteStamina)
-    createToggle(contentFrame, "Modo Imortal", setGodMode)
-    createToggle(contentFrame, "Remover Névoa", setRemoveFog)
-    createButton(contentFrame, "Pegar Ferramenta de Teleporte", giveTeleportTool)
-    createButton(contentFrame, "Velocidade x2 (32)", function() setWalkSpeed(32) end)
-    createButton(contentFrame, "Velocidade Padrão (16)", function() setWalkSpeed(16) end)
+    local resultLabel = Instance.new("TextLabel"); resultLabel.Size = UDim2.new(1, -10, 0, 0); resultLabel.AutomaticSize = Enum.AutomaticSize.Y; resultLabel.Text = "Clique em 'Analisar' para começar..."; resultLabel.Font = Enum.Font.Code; resultLabel.TextSize = 14; resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200); resultLabel.BackgroundTransparency = 1; resultLabel.TextXAlignment = Enum.TextXAlignment.Left; resultLabel.TextYAlignment = Enum.TextYAlignment.Top; resultLabel.Parent = resultFrame;
+    Instance.new("UIPadding", resultLabel).Padding = UDim.new(0, 5);
 
-    local function makeDraggable(trigger,target)local d,s,p;trigger.InputBegan:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 then d,s,p=true,i.Position,target.Position;local c;c=i.Changed:Connect(function()if i.UserInputState==Enum.UserInputState.End then d=false;c:Disconnect()end end)end end);UserInputService.InputChanged:Connect(function(i)if d and i.UserInputType==Enum.UserInputType.MouseMovement then local l=i.Position-s;target.Position=UDim2.new(p.X.Scale,p.X.Offset+l.X,p.Y.Scale,p.Y.Offset+l.Y)end end)end
-    makeDraggable(header, modPanel)
-    closeButton.MouseButton1Click:Connect(function() screenGui:Destroy() end)
-    minimizeButton.MouseButton1Click:Connect(function() modPanel.Visible = false; minimizedPanel.Visible = true end)
-    minimizedPanel.MouseButton1Click:Connect(function() modPanel.Visible = true; minimizedPanel.Visible = false end)
-end
-
---======= LÓGICA DE INICIALIZAÇÃO =======--
-local function showLoginScreen()
-    local loginGui = Instance.new("ScreenGui"); loginGui.Name = "LoginScreen"; loginGui.ResetOnSpawn = false; loginGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; loginGui.Parent = playerGui;
+    local buttonFrame = Instance.new("Frame"); buttonFrame.Size = UDim2.new(1, -20, 0, 35); buttonFrame.Position = UDim2.new(0.5, 0, 1, -10); buttonFrame.AnchorPoint = Vector2.new(0.5, 1); buttonFrame.BackgroundTransparency = 1; buttonFrame.Parent = mainPanel;
+    local buttonLayout = Instance.new("UIListLayout"); buttonLayout.FillDirection = Enum.FillDirection.Horizontal; buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center; buttonLayout.Padding = UDim.new(0, 10); buttonLayout.Parent = buttonFrame;
     
-    local background = Instance.new("Frame"); background.Size = UDim2.new(1,0,1,0); background.BackgroundColor3 = Color3.fromRGB(0,0,0); background.BackgroundTransparency = 0.5; background.Parent = loginGui;
-    local mainFrame = Instance.new("Frame"); mainFrame.Size = UDim2.new(0, 350, 0, 180); mainFrame.Position = UDim2.new(0.5,0,0.5,0); mainFrame.AnchorPoint = Vector2.new(0.5,0.5); mainFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 28); mainFrame.Parent = background; Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0,8); Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(0,255,255);
+    local analyzeButton = Instance.new("TextButton"); analyzeButton.Name = "AnalyzeButton"; analyzeButton.Size = UDim2.new(0.5, -5, 1, 0); analyzeButton.Text = "Analisar Jogo"; analyzeButton.Font = Enum.Font.SourceSansBold; analyzeButton.TextSize = 14; analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200); analyzeButton.TextColor3 = Color3.fromRGB(255, 255, 255); analyzeButton.Parent = buttonFrame; Instance.new("UICorner", analyzeButton).CornerRadius = UDim.new(0, 6);
+    local copyButton = Instance.new("TextButton"); copyButton.Name = "CopyButton"; copyButton.Size = UDim2.new(0.5, -5, 1, 0); copyButton.Text = "Copiar"; copyButton.Font = Enum.Font.SourceSansBold; copyButton.TextSize = 14; copyButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80); copyButton.TextColor3 = Color3.fromRGB(255, 255, 255); copyButton.Parent = buttonFrame; Instance.new("UICorner", copyButton).CornerRadius = UDim.new(0, 6);
     
-    local title = Instance.new("TextLabel"); title.Size = UDim2.new(1,0,0,40); title.Text = "AUTENTICAÇÃO NECESSÁRIA"; title.Font = Enum.Font.Michroma; title.TextSize = 16; title.TextColor3 = Color3.fromRGB(0,255,255); title.BackgroundTransparency = 1; title.Parent = mainFrame;
-    local keyBox = Instance.new("TextBox"); keyBox.Size = UDim2.new(1,-40,0,40); keyBox.Position = UDim2.new(0.5,0,0,60); keyBox.AnchorPoint = Vector2.new(0.5,0); keyBox.Font = Enum.Font.SourceSans; keyBox.TextSize = 14; keyBox.PlaceholderText = "Insira sua chave de 12 dígitos"; keyBox.BackgroundColor3 = Color3.fromRGB(10,10,10); keyBox.TextColor3 = Color3.fromRGB(255,255,255); keyBox.Parent = mainFrame; Instance.new("UICorner", keyBox).CornerRadius = UDim.new(0,6);
-    local submitButton = Instance.new("TextButton"); submitButton.Size = UDim2.new(1,-40,0,40); submitButton.Position = UDim2.new(0.5,0,0,120); submitButton.AnchorPoint = Vector2.new(0.5,0); submitButton.Text = "VALIDAR"; submitButton.Font = Enum.Font.Michroma; submitButton.TextSize = 14; submitButton.TextColor3 = Color3.fromRGB(20,22,28); submitButton.BackgroundColor3 = Color3.fromRGB(0,255,255); submitButton.Parent = mainFrame; Instance.new("UICorner", submitButton).CornerRadius = UDim.new(0,6);
+    -- Funcionalidades
+    analyzeButton.MouseButton1Click:Connect(function()
+        resultLabel.Text = "Analisando, por favor aguarde..."
+        task.wait(0.1) -- Dá tempo para a UI atualizar
+        local analysisResult = analyzeGame()
+        resultLabel.Text = analysisResult
+        resultFrame.CanvasPosition = Vector2.new(0, 0)
+    end)
 
-    submitButton.MouseButton1Click:Connect(function()
-        if VALID_KEYS[keyBox.Text:upper()] then
-            loginGui:Destroy()
-            createMainPanel()
+    copyButton.MouseButton1Click:Connect(function()
+        if setclipboard then
+            setclipboard(resultLabel.Text)
+            copyButton.Text = "Copiado!"
+            task.wait(2)
+            copyButton.Text = "Copiar"
         else
-            submitButton.Text = "CHAVE INVÁLIDA"
-            submitButton.BackgroundColor3 = Color3.fromRGB(255,50,50)
-            task.wait(1.5)
-            submitButton.Text = "VALIDAR"
-            submitButton.BackgroundColor3 = Color3.fromRGB(0,255,255)
+            copyButton.Text = "Erro ao copiar!"
+            task.wait(2)
+            copyButton.Text = "Copiar"
         end
     end)
+
+    local function makeDraggable(trigger, target) local dragging, dragStart, startPos; trigger.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, dragStart, startPos = true, input.Position, target.Position; local conn; conn = input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end end) end end); UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end) end
+    makeDraggable(header, mainPanel)
 end
 
-local function showErrorScreen()
-    local errorGui = Instance.new("ScreenGui"); errorGui.Name = "ErrorScreen"; errorGui.Parent = playerGui;
-    local label = Instance.new("TextLabel"); label.Text = "ERRO: Este script é compatível apenas com '99+ Noites na Floresta'."; label.Size = UDim2.new(1,0,0,50); label.Position = UDim2.new(0.5,0,0.5,0); label.AnchorPoint = Vector2.new(0.5,0.5); label.BackgroundColor3 = Color3.fromRGB(200,0,0); label.Font = Enum.Font.SourceSansBold; label.TextSize = 20; label.TextColor3 = Color3.fromRGB(255,255,255); label.Parent = errorGui;
-end
-
-if game.PlaceId == GAME_ID then
-    showLoginScreen()
-else
-    showErrorScreen()
-end
+-- Iniciar
+createAnalyzerPanel()
