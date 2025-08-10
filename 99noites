@@ -8,7 +8,7 @@ local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
 -- Palavra-chave para ativar a análise
-local TRIGGER_COMMAND = "analisar"
+local TRIGGER_COMMAND = "/analisar"
 
 --======= FUNÇÃO DE ANÁLISE "INTELIGENTE" =======--
 
@@ -95,8 +95,8 @@ end
 
 --======= LÓGICA DE NOTIFICAÇÃO E ATIVAÇÃO =======--
 
-local function showNotification(message)
-    -- Cria uma ScreenGui temporária para a notificação
+local function runAnalysisProcess()
+    -- Cria a interface da notificação
     local notificationGui = Instance.new("ScreenGui")
     notificationGui.Name = "AnalyzerNotification"
     notificationGui.ResetOnSpawn = false
@@ -109,51 +109,61 @@ local function showNotification(message)
     label.AnchorPoint = Vector2.new(0.5, 0)
     label.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
     label.Font = Enum.Font.SourceSansBold
-    label.Text = message
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.TextSize = 16
     label.Parent = notificationGui
     Instance.new("UICorner", label).CornerRadius = UDim.new(0, 8)
-    Instance.new("UIStroke", label).Color = Color3.fromRGB(80, 180, 80)
+    local stroke = Instance.new("UIStroke", label)
 
-    -- Animação
+    -- Animações de entrada e saída
     local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
     local tweenIn = game:GetService("TweenService"):Create(label, tweenInfo, {Position = UDim2.new(0.5, 0, 0, 20)})
     local tweenOut = game:GetService("TweenService"):Create(label, tweenInfo, {Position = UDim2.new(0.5, 0, 0, -100)})
 
+    -- Etapa 1: Mostrar "Analisando..."
+    label.Text = "Analisando o jogo..."
+    stroke.Color = Color3.fromRGB(80, 150, 200) -- Azul
     tweenIn:Play()
-    task.wait(3) -- A notificação fica visível por 3 segundos
-    tweenOut:Play()
+    tweenIn.Completed:Wait() -- Espera a animação de entrada terminar
 
-    -- Limpeza
+    -- Etapa 2: Fazer a análise e copiar
+    task.wait(0.2) -- Pequena pausa para o usuário ler
+    local analysisResult = analyzeGame()
+    local success = false
+    if setclipboard then
+        setclipboard(analysisResult)
+        success = true
+    end
+
+    -- Etapa 3: Mostrar resultado
+    if success then
+        label.Text = "Análise Concluída e Copiada!"
+        stroke.Color = Color3.fromRGB(80, 180, 80) -- Verde
+    else
+        label.Text = "ERRO: 'setclipboard' não suportado!"
+        stroke.Color = Color3.fromRGB(200, 80, 80) -- Vermelho
+    end
+    
+    -- Etapa 4: Esperar e sair
+    task.wait(3)
+    tweenOut:Play()
     tweenOut.Completed:Wait()
     notificationGui:Destroy()
 end
 
 -- Escuta por novas mensagens no chat
-localPlayer.Chatted:Connect(function(message, recipient)
-    -- Verifica se a mensagem é o comando (convertido para minúsculas)
+localPlayer.Chatted:Connect(function(message)
     if message:lower() == TRIGGER_COMMAND then
-        
-        -- Tenta apagar a mensagem do chat (requer certas permissões do executor)
+        -- Tenta apagar a mensagem do chat
         pcall(function()
             local chatService = require(game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("ChatServiceRunner"))
             local speaker = chatService:GetSpeaker(localPlayer.Name)
-            speaker:SayMessage("", "All", true) -- Envia uma mensagem vazia para "sobrescrever" a anterior
+            speaker:SayMessage("", "All", true)
         end)
         
-        -- Executa a análise
-        local analysisResult = analyzeGame()
-        
-        -- Copia para a área de transferência
-        if setclipboard then
-            setclipboard(analysisResult)
-            showNotification("Análise do Jogo Concluída e Copiada!")
-        else
-            showNotification("ERRO: 'setclipboard' não é suportado pelo seu executor.")
-        end
+        -- Inicia o processo de análise com feedback visual
+        runAnalysisProcess()
     end
 end)
 
--- Mensagem de confirmação no console do executor
 print("Analisador de Jogo por Chat ativado. Digite '" .. TRIGGER_COMMAND .. "' no chat para usar.")
