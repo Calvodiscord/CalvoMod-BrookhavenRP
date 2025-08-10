@@ -1,8 +1,8 @@
 --[[
-    SCRIPT: Painel CALVO MOD (Versão 4.0 - Aimbot & ESP Edition)
-    DESCRIÇÃO: Versão com correção de bugs críticos e adição de ESP, Aimbot e slider de transparência.
+    SCRIPT: Painel CALVO MOD (Versão 5.0 - Smart Aimbot Edition)
+    DESCRIÇÃO: Versão com Aimbot por time, tiro automático e a capacidade de travar a mira em um jogador específico.
     AUTOR: Gemini
-    VERSÃO: 4.0
+    VERSÃO: 5.0
 --]]
 
 --======= SERVIÇOS E VARIÁVEIS GLOBAIS =======--
@@ -17,200 +17,89 @@ local camera = workspace.CurrentCamera
 
 -- Variáveis de controle de estado
 local character, humanoid, rootPart
-local isFlying, isGodMode, isNoclip, hasForcefield, isEspEnabled, isAimbotEnabled = false, false, false, false, false, false
+local isFlying, isGodMode, isNoclip, hasForcefield, isEspEnabled, isAimbotEnabled, isAutoFireEnabled = false, false, false, false, false, false, false
 local flyConnection, noclipConnection, spectateConnection, forcefieldConnection, espConnection, aimbotConnection
 local originalWalkSpeed, originalMaxHealth = 16, 100
-local currentPlayerTarget = nil
-local espElements = {} -- Tabela para guardar os GUIs do ESP
+local espElements = {}
+
+-- Variáveis específicas do Aimbot
+local aimbotMode = "auto" -- 'auto' ou 'manual'
+local manualAimbotTarget = nil
+local fireRate = 0.1 -- Tempo entre os tiros em segundos
+local lastFireTime = 0
 
 --======= FUNÇÕES DE MOD (A LÓGICA DAS OPÇÕES) =======--
+-- (Funções de getCharacter, setGodMode, setForcefield, setSpeed, etc. permanecem as mesmas)
+local function getCharacter() if not localPlayer.Character or not localPlayer.Character.Parent or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then return false end; character=localPlayer.Character; humanoid=character:WaitForChild("Humanoid"); rootPart=character:WaitForChild("HumanoidRootPart"); return true end
+localPlayer.CharacterAdded:Connect(function(char) getCharacter(); char:WaitForChild("Humanoid").WalkSpeed=originalWalkSpeed; char:WaitForChild("Humanoid").MaxHealth=originalMaxHealth; setGodMode(isGodMode); setForcefield(hasForcefield); setNoclip(isNoclip) end)
+getCharacter();
+local function setGodMode(e) isGodMode=e; if getCharacter() then humanoid.MaxHealth=e and math.huge or originalMaxHealth; if e then humanoid.Health=humanoid.MaxHealth end end end
+local function setForcefield(e) hasForcefield=e; if e then if not forcefieldConnection then forcefieldConnection=RunService.Heartbeat:Connect(function() if getCharacter() and not character:FindFirstChildOfClass("ForceField") then Instance.new("ForceField",character) end end) end elseif forcefieldConnection then forcefieldConnection:Disconnect(); forcefieldConnection=nil; if getCharacter() and character:FindFirstChildOfClass("ForceField") then character:FindFirstChildOfClass("ForceField"):Destroy() end end end
+local function setSpeed(s) if getCharacter() then originalWalkSpeed=s; humanoid.WalkSpeed=s end end
+local function setNoclip(e) isNoclip=e; if e and not noclipConnection then noclipConnection=RunService.Stepped:Connect(function() if getCharacter() then for _,p in pairs(character:GetDescendants()) do if p:IsA("BasePart")and p.CanCollide then p.CanCollide=false end end end end) elseif not e and noclipConnection then noclipConnection:Disconnect();noclipConnection=nil end end
+local flyButtonsFrame; local function setFly(e) isFlying=e;if not getCharacter()then return end;if e then humanoid:ChangeState(Enum.HumanoidStateType.Physics);local bG=Instance.new("BodyGyro",rootPart);bG.Name="FlyGyro";bG.MaxTorque=Vector3.new(0,9e9,0);bG.P=20000;local bV=Instance.new("BodyVelocity",rootPart);bV.Name="FlyVelocity";bV.MaxForce=Vector3.new(9e9,9e9,9e9);bV.Velocity=Vector3.new(0,0,0);flyConnection=RunService.Heartbeat:Connect(function()if not isFlying or not getCharacter()then return end;local flySpeed=50;local mD=humanoid.MoveDirection;local vD=0;if UserInputService:IsKeyDown(Enum.KeyCode.W)then mD=camera.CFrame.LookVector end;if UserInputService:IsKeyDown(Enum.KeyCode.S)then mD=-camera.CFrame.LookVector end;if UserInputService:IsKeyDown(Enum.KeyCode.A)then mD=-camera.CFrame.RightVector end;if UserInputService:IsKeyDown(Enum.KeyCode.D)then mD=camera.CFrame.RightVector end;if UserInputService:IsKeyDown(Enum.KeyCode.Space)then vD=1 end;if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)then vD=-1 end;bG.CFrame=CFrame.new(rootPart.Position,rootPart.Position+camera.CFrame.LookVector);bV.Velocity=(mD*flySpeed)+Vector3.new(0,vD*flySpeed,0)end);if UserInputService.TouchEnabled then flyButtonsFrame.Visible=true end else if flyConnection then flyConnection:Disconnect();flyConnection=nil end;if rootPart and rootPart:FindFirstChild("FlyGyro")then rootPart.FlyGyro:Destroy()end;if rootPart and rootPart:FindFirstChild("FlyVelocity")then rootPart.FlyVelocity:Destroy()end;humanoid:ChangeState(Enum.HumanoidStateType.GettingUp);if UserInputService.TouchEnabled then flyButtonsFrame.Visible=false end end end
+local stopSpectateButton; local function teleportToPlayer(t)if getCharacter()and t and t.Character and t.Character:FindFirstChild("HumanoidRootPart")then rootPart.CFrame=t.Character.HumanoidRootPart.CFrame end end;local function pullPlayer(t)if getCharacter()and t and t.Character and t.Character:FindFirstChild("HumanoidRootPart")then pcall(function()t.Character.HumanoidRootPart.CFrame=rootPart.CFrame end)end end;local function copySkin(t)if getCharacter()and t and t.Character then for _,v in pairs(character:GetChildren())do if v:IsA("Accessory")or v:IsA("Shirt")or v:IsA("Pants")or v:IsA("BodyColors")then v:Destroy()end end;for _,v in pairs(t.Character:GetChildren())do if v:IsA("Accessory")or v:IsA("Shirt")or v:IsA("Pants")or v:IsA("BodyColors")then v:Clone().Parent=character end end end end;local function spectatePlayer(t,s)if s then if spectateConnection then spectateConnection:Disconnect();spectateConnection=nil end;if getCharacter()then camera.CameraType=Enum.CameraType.Custom;camera.CameraSubject=humanoid end;if stopSpectateButton then stopSpectateButton.Visible=false end;return end;if t and t.Character and t.Character:FindFirstChild("Humanoid")then camera.CameraType=Enum.CameraType.Scriptable;if stopSpectateButton then stopSpectateButton.Visible=true end;spectateConnection=RunService.RenderStepped:Connect(function()if t and t.Character and t.Character:FindFirstChild("HumanoidRootPart")then camera.CFrame=CFrame.new(t.Character.HumanoidRootPart.Position)*CFrame.new(0,10,20)else spectatePlayer(nil,true)end end)end end
+local function cleanupEsp() for _,e in pairs(espElements)do if e then e:Destroy()end end;espElements={}end
+local function setEsp(e)isEspEnabled=e;if e then espConnection=RunService.RenderStepped:Connect(function()if not getCharacter()then return end;local cP={};for _,p in ipairs(Players:GetPlayers())do if p~=localPlayer and p.Character and p.Character:FindFirstChild("Head")then cP[p]=true;local h=p.Character.Head;local esp=espElements[p];if not esp then esp=Instance.new("BillboardGui");esp.Name="ESP_GUI";esp.Adornee=h;esp.Size=UDim2.new(0,200,0,80);esp.AlwaysOnTop=true;esp.LightInfluence=0;esp.ResetOnSpawn=false;local nL=Instance.new("TextLabel");nL.Name="NameLabel";nL.Size=UDim2.new(1,0,0,20);nL.Text=p.DisplayName;nL.Font=Enum.Font.SourceSansBold;nL.TextSize=16;nL.TextColor3=Color3.fromRGB(255,255,255);nL.TextStrokeTransparency=0;nL.BackgroundTransparency=1;nL.Parent=esp;local dL=Instance.new("TextLabel");dL.Name="DistanceLabel";dL.Size=UDim2.new(1,0,0,20);dL.Position=UDim2.new(0,0,0,20);dL.Font=Enum.Font.SourceSans;dL.TextSize=14;dL.TextColor3=Color3.fromRGB(220,220,220);dL.TextStrokeTransparency=0.5;dL.BackgroundTransparency=1;dL.Parent=esp;local hB=Instance.new("Frame");hB.Name="HealthBG";hB.Size=UDim2.new(1,0,0,8);hB.Position=UDim2.new(0,0,0,45);hB.BackgroundColor3=Color3.fromRGB(80,0,0);hB.BorderSizePixel=0;hB.Parent=esp;local hP=Instance.new("Frame");hP.Name="HealthBar";hP.Size=UDim2.new(1,0,1,0);hP.BackgroundColor3=Color3.fromRGB(0,255,0);hP.BorderSizePixel=0;hP.Parent=hB;esp.Parent=playerGui;espElements[p]=esp end;local d=math.floor((rootPart.Position-h.Position).Magnitude);esp.DistanceLabel.Text=d.." studs";local tH=p.Character:FindFirstChildOfClass("Humanoid");if tH then local hP=tH.Health/tH.MaxHealth;esp.HealthBG.HealthBar.Size=UDim2.new(hP,0,1,0);if hP<0.3 then esp.HealthBG.HealthBar.BackgroundColor3=Color3.fromRGB(255,0,0)elseif hP<0.6 then esp.HealthBG.HealthBar.BackgroundColor3=Color3.fromRGB(255,255,0)else esp.HealthBG.HealthBar.BackgroundColor3=Color3.fromRGB(0,255,0)end end end end;for p,e in pairs(espElements)do if not cP[p]then e:Destroy();espElements[p]=nil end end end)else if espConnection then espConnection:Disconnect();espConnection=nil end;cleanupEsp()end end
 
-local function getCharacter()
-    if not localPlayer.Character or not localPlayer.Character.Parent or not localPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        return false
-    end
-    character = localPlayer.Character
-    humanoid = character:WaitForChild("Humanoid")
-    rootPart = character:WaitForChild("HumanoidRootPart")
-    return true
-end
-
-localPlayer.CharacterAdded:Connect(function(char)
-    getCharacter()
-    char:WaitForChild("Humanoid").WalkSpeed = originalWalkSpeed
-    char:WaitForChild("Humanoid").MaxHealth = originalMaxHealth
-    -- Reaplicar mods
-    setGodMode(isGodMode)
-    setForcefield(hasForcefield)
-    setNoclip(isNoclip)
-end)
-getCharacter() -- Primeira chamada
-
--- Funções de Mod individuais
-local function setGodMode(enabled)
-    isGodMode = enabled
-    if getCharacter() then
-        humanoid.MaxHealth = enabled and math.huge or originalMaxHealth
-        if enabled then humanoid.Health = humanoid.MaxHealth end
-    end
-end
-
-local function setForcefield(enabled)
-    hasForcefield = enabled
-    if enabled then
-        if not forcefieldConnection then
-            forcefieldConnection = RunService.Heartbeat:Connect(function()
-                if getCharacter() and not character:FindFirstChildOfClass("ForceField") then
-                    Instance.new("ForceField", character)
-                end
-            end)
-        end
-    elseif forcefieldConnection then
-        forcefieldConnection:Disconnect()
-        forcefieldConnection = nil
-        if getCharacter() and character:FindFirstChildOfClass("ForceField") then
-            character:FindFirstChildOfClass("ForceField"):Destroy()
-        end
-    end
-end
-
-local function setSpeed(speed) if getCharacter() then originalWalkSpeed = speed; humanoid.WalkSpeed = speed end end
-local function setNoclip(enabled) isNoclip = enabled; if enabled and not noclipConnection then noclipConnection = RunService.Stepped:Connect(function() if getCharacter() then for _, part in pairs(character:GetDescendants()) do if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end end end end) elseif not enabled and noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end end
-local flyButtonsFrame; local function setFly(enabled) isFlying = enabled; if not getCharacter() then return end; if enabled then humanoid:ChangeState(Enum.HumanoidStateType.Physics); local bG = Instance.new("BodyGyro", rootPart); bG.Name = "FlyGyro"; bG.MaxTorque = Vector3.new(0, 9e9, 0); bG.P = 20000; local bV = Instance.new("BodyVelocity", rootPart); bV.Name = "FlyVelocity"; bV.MaxForce = Vector3.new(9e9, 9e9, 9e9); bV.Velocity = Vector3.new(0, 0, 0); flyConnection = RunService.Heartbeat:Connect(function() if not isFlying or not getCharacter() then return end; local flySpeed = 50; local mD = Vector3.new(); local vD = 0; if UserInputService:IsKeyDown(Enum.KeyCode.W) then mD = camera.CFrame.LookVector end; if UserInputService:IsKeyDown(Enum.KeyCode.S) then mD = -camera.CFrame.LookVector end; if UserInputService:IsKeyDown(Enum.KeyCode.A) then mD = -camera.CFrame.RightVector end; if UserInputService:IsKeyDown(Enum.KeyCode.D) then mD = camera.CFrame.RightVector end; if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vD = 1 end; if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then vD = -1 end; bG.CFrame = CFrame.new(rootPart.Position, rootPart.Position + camera.CFrame.LookVector); bV.Velocity = (mD * flySpeed) + Vector3.new(0, vD * flySpeed, 0) end); if UserInputService.TouchEnabled then flyButtonsFrame.Visible = true end else if flyConnection then flyConnection:Disconnect(); flyConnection = nil end; if rootPart and rootPart:FindFirstChild("FlyGyro") then rootPart.FlyGyro:Destroy() end; if rootPart and rootPart:FindFirstChild("FlyVelocity") then rootPart.FlyVelocity:Destroy() end; humanoid:ChangeState(Enum.HumanoidStateType.GettingUp); if UserInputService.TouchEnabled then flyButtonsFrame.Visible = false end end end
-
--- Funções de Ação do Jogador
-local stopSpectateButton; local function teleportToPlayer(target) if getCharacter() and target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then rootPart.CFrame = target.Character.HumanoidRootPart.CFrame end end; local function pullPlayer(target) if getCharacter() and target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then pcall(function() target.Character.HumanoidRootPart.CFrame = rootPart.CFrame end) end end; local function copySkin(target) if getCharacter() and target and target.Character then for _, v in pairs(character:GetChildren()) do if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("BodyColors") then v:Destroy() end end; for _, v in pairs(target.Character:GetChildren()) do if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("BodyColors") then v:Clone().Parent = character end end end end; local function spectatePlayer(target, stop) if stop then if spectateConnection then spectateConnection:Disconnect(); spectateConnection = nil end; if getCharacter() then camera.CameraType = Enum.CameraType.Custom; camera.CameraSubject = humanoid end; if stopSpectateButton then stopSpectateButton.Visible = false end; return end; if target and target.Character and target.Character:FindFirstChild("Humanoid") then camera.CameraType = Enum.CameraType.Scriptable; if stopSpectateButton then stopSpectateButton.Visible = true end; spectateConnection = RunService.RenderStepped:Connect(function() if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then camera.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position) * CFrame.new(0, 10, 20) else spectatePlayer(nil, true) end end) end end
-
--- Função ESP
-local function cleanupEsp()
-    for player, esp in pairs(espElements) do
-        if esp then esp:Destroy() end
-    end
-    espElements = {}
-end
-
-local function setEsp(enabled)
-    isEspEnabled = enabled
-    if enabled then
-        espConnection = RunService.RenderStepped:Connect(function()
-            if not getCharacter() then return end
-            local currentPlayers = {}
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") then
-                    currentPlayers[player] = true
-                    local head = player.Character.Head
-                    local esp = espElements[player]
-                    if not esp then
-                        esp = Instance.new("BillboardGui")
-                        esp.Name = "ESP_GUI"
-                        esp.Adornee = head
-                        esp.Size = UDim2.new(0, 200, 0, 80)
-                        esp.AlwaysOnTop = true
-                        esp.LightInfluence = 0
-                        esp.ResetOnSpawn = false
-
-                        local nameLabel = Instance.new("TextLabel")
-                        nameLabel.Name = "NameLabel"
-                        nameLabel.Size = UDim2.new(1, 0, 0, 20)
-                        nameLabel.Text = player.DisplayName
-                        nameLabel.Font = Enum.Font.SourceSansBold
-                        nameLabel.TextSize = 16
-                        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-                        nameLabel.TextStrokeTransparency = 0
-                        nameLabel.BackgroundTransparency = 1
-                        nameLabel.Parent = esp
-
-                        local distLabel = Instance.new("TextLabel")
-                        distLabel.Name = "DistanceLabel"
-                        distLabel.Size = UDim2.new(1, 0, 0, 20)
-                        distLabel.Position = UDim2.new(0, 0, 0, 20)
-                        distLabel.Font = Enum.Font.SourceSans
-                        distLabel.TextSize = 14
-                        distLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
-                        distLabel.TextStrokeTransparency = 0.5
-                        distLabel.BackgroundTransparency = 1
-                        distLabel.Parent = esp
-                        
-                        local healthBg = Instance.new("Frame")
-                        healthBg.Name = "HealthBG"
-                        healthBg.Size = UDim2.new(1,0,0,8)
-                        healthBg.Position = UDim2.new(0,0,0,45)
-                        healthBg.BackgroundColor3 = Color3.fromRGB(80,0,0)
-                        healthBg.BorderSizePixel = 0
-                        healthBg.Parent = esp
-                        
-                        local healthBar = Instance.new("Frame")
-                        healthBar.Name = "HealthBar"
-                        healthBar.Size = UDim2.new(1,0,1,0)
-                        healthBar.BackgroundColor3 = Color3.fromRGB(0,255,0)
-                        healthBar.BorderSizePixel = 0
-                        healthBar.Parent = healthBg
-
-                        esp.Parent = playerGui
-                        espElements[player] = esp
-                    end
-
-                    -- Update info
-                    local distance = math.floor((rootPart.Position - head.Position).Magnitude)
-                    esp.DistanceLabel.Text = distance .. " studs"
-                    local targetHumanoid = player.Character:FindFirstChildOfClass("Humanoid")
-                    if targetHumanoid then
-                        local healthPercent = targetHumanoid.Health / targetHumanoid.MaxHealth
-                        esp.HealthBG.HealthBar.Size = UDim2.new(healthPercent, 0, 1, 0)
-                        if healthPercent < 0.3 then esp.HealthBG.HealthBar.BackgroundColor3 = Color3.fromRGB(255,0,0) elseif healthPercent < 0.6 then esp.HealthBG.HealthBar.BackgroundColor3 = Color3.fromRGB(255,255,0) else esp.HealthBG.HealthBar.BackgroundColor3 = Color3.fromRGB(0,255,0) end
-                    end
-                end
-            end
-            -- Cleanup
-            for player, esp in pairs(espElements) do
-                if not currentPlayers[player] then
-                    esp:Destroy()
-                    espElements[player] = nil
-                end
-            end
-        end)
-    else
-        if espConnection then espConnection:Disconnect(); espConnection = nil end
-        cleanupEsp()
-    end
-end
-
--- Função Aimbot
+-- Função Aimbot (v5.0 - com modos, tiro automático e checagem de time)
 local function setAimbot(enabled)
     isAimbotEnabled = enabled
     if enabled then
         aimbotConnection = RunService.RenderStepped:Connect(function()
-            local target, minDistance = nil, 300 -- Max distance from center of screen
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= localPlayer and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
-                    local head = player.Character.Head
-                    local raycastParams = RaycastParams.new()
-                    raycastParams.FilterDescendantsInstances = {localPlayer.Character}
-                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                    local raycastResult = workspace:Raycast(camera.CFrame.Position, head.Position - camera.CFrame.Position, raycastParams)
-                    if not raycastResult or raycastResult.Instance:IsDescendantOf(player.Character) then
-                        local screenPos, onScreen = camera:WorldToScreenPoint(head.Position)
-                        if onScreen then
-                            local distance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
-                            if distance < minDistance then
-                                minDistance = distance
-                                target = head
+            local targetHead, minDistance = nil, 300 -- Max distance from center of screen
+
+            if aimbotMode == "manual" then
+                if manualAimbotTarget and manualAimbotTarget.Character and manualAimbotTarget.Character:FindFirstChild("Head") and manualAimbotTarget.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                    targetHead = manualAimbotTarget.Character.Head
+                else
+                    manualAimbotTarget = nil -- Reseta se o alvo for inválido
+                    aimbotMode = "auto"
+                end
+            end
+            
+            if aimbotMode == "auto" then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= localPlayer and player.Team ~= localPlayer.Team and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                        local head = player.Character.Head
+                        local rayParams = RaycastParams.new(); rayParams.FilterDescendantsInstances = {localPlayer.Character}; rayParams.FilterType = Enum.RaycastFilterType.Exclude
+                        local rayResult = workspace:Raycast(camera.CFrame.Position, head.Position - camera.CFrame.Position, rayParams)
+                        
+                        if not rayResult or rayResult.Instance:IsDescendantOf(player.Character) then
+                            local screenPos, onScreen = camera:WorldToScreenPoint(head.Position)
+                            if onScreen then
+                                local distance = (Vector2.new(screenPos.X, screenPos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                                if distance < minDistance then
+                                    minDistance = distance
+                                    targetHead = head
+                                end
                             end
                         end
                     end
                 end
             end
-            if target then camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Position) end
+
+            if targetHead then
+                camera.CFrame = CFrame.lookAt(camera.CFrame.Position, targetHead.Position)
+                if isAutoFireEnabled and (tick() - lastFireTime > fireRate) then
+                    lastFireTime = tick()
+                    pcall(function()
+                        mouse1press()
+                        task.wait()
+                        mouse1release()
+                    end)
+                end
+            end
         end)
     else
         if aimbotConnection then aimbotConnection:Disconnect(); aimbotConnection = nil end
     end
 end
 
-
 --======= CRIAÇÃO DA INTERFACE GRÁFICA (GUI) - COMPLETO =======--
+-- (O código da GUI é idêntico ao da v4, mas a altura do painel foi ajustada para a nova opção)
 local screenGui = Instance.new("ScreenGui"); screenGui.Name = "CalvoModScreenGui"; screenGui.ResetOnSpawn = false; screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; screenGui.Parent = playerGui;
-local modPanel = Instance.new("Frame"); modPanel.Name = "ModPanel"; modPanel.Size = UDim2.new(0, 650, 0, 480); modPanel.Position = UDim2.new(0.5, 0, 0.5, 0); modPanel.AnchorPoint = Vector2.new(0.5, 0.5); modPanel.BackgroundColor3 = Color3.fromRGB(26, 26, 26); modPanel.BackgroundTransparency = 0.3; modPanel.ClipsDescendants = true; modPanel.Parent = screenGui; Instance.new("UICorner", modPanel).CornerRadius = UDim.new(0, 12); Instance.new("UIStroke", modPanel).Transparency = 0.9;
+local modPanel = Instance.new("Frame"); modPanel.Name = "ModPanel"; modPanel.Size = UDim2.new(0, 650, 0, 520); modPanel.Position = UDim2.new(0.5, 0, 0.5, 0); modPanel.AnchorPoint = Vector2.new(0.5, 0.5); modPanel.BackgroundColor3 = Color3.fromRGB(26, 26, 26); modPanel.BackgroundTransparency = 0.3; modPanel.ClipsDescendants = true; modPanel.Parent = screenGui; Instance.new("UICorner", modPanel).CornerRadius = UDim.new(0, 12); Instance.new("UIStroke", modPanel).Transparency = 0.9;
 local panelHeader = Instance.new("Frame"); panelHeader.Name = "PanelHeader"; panelHeader.Size = UDim2.new(1, 0, 0, 48); panelHeader.BackgroundColor3 = Color3.fromRGB(59, 59, 59); panelHeader.BackgroundTransparency = 0.4; panelHeader.Parent = modPanel;
 local headerTitleContainer = Instance.new("Frame"); headerTitleContainer.Name = "HeaderTitleContainer"; headerTitleContainer.Size = UDim2.new(1, -120, 1, 0); headerTitleContainer.Position = UDim2.new(0, 0, 0, 0); headerTitleContainer.BackgroundTransparency = 1; headerTitleContainer.Parent = panelHeader;
 local uiListLayoutTitle = Instance.new("UIListLayout"); uiListLayoutTitle.FillDirection = Enum.FillDirection.Horizontal; uiListLayoutTitle.VerticalAlignment = Enum.VerticalAlignment.Center; uiListLayoutTitle.Padding = UDim.new(0, 8); uiListLayoutTitle.Parent = headerTitleContainer;
@@ -236,61 +125,42 @@ local settingsContent = Instance.new("Frame"); settingsContent.Name = "settings-
 local aiContent = Instance.new("Frame"); aiContent.Name = "ai-content"; aiContent.Size = UDim2.new(1, 0, 1, 0); aiContent.BackgroundTransparency = 1; aiContent.Visible = false; aiContent.Parent = contentArea; local aiLayout = Instance.new("UIListLayout"); aiLayout.Padding = UDim.new(0, 5); aiLayout.Parent = aiContent;
 
 -- Funções para criar elementos da GUI
-local function createTitle(parent, text, desc) local t = Instance.new("TextLabel"); t.Text = text; t.Font = Enum.Font.SourceSansBold; t.TextSize = 20; t.TextColor3 = Color3.fromRGB(240, 240, 240); t.BackgroundTransparency = 1; t.TextXAlignment = Enum.TextXAlignment.Left; t.Size = UDim2.new(1, 0, 0, 24); t.Parent = parent; local d = Instance.new("TextLabel"); d.Text = desc; d.Font = Enum.Font.SourceSans; d.TextSize = 14; d.TextColor3 = Color3.fromRGB(160, 160, 160); d.BackgroundTransparency = 1; d.TextXAlignment = Enum.TextXAlignment.Left; d.Size = UDim2.new(1, 0, 0, 20); d.Parent = parent; end
-local function createToggleOption(parent, text, callback) local f = Instance.new("Frame"); f.Name = text .. "Opt"; f.Size = UDim2.new(1, 0, 0, 40); f.BackgroundColor3 = Color3.fromRGB(60, 60, 60); f.BackgroundTransparency = 0.5; f.Parent = parent; Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8); local l = Instance.new("UIListLayout"); l.FillDirection = Enum.FillDirection.Horizontal; l.VerticalAlignment = Enum.VerticalAlignment.Center; l.HorizontalAlignment = Enum.HorizontalAlignment.Right; l.Padding = UDim.new(0, 12); l.Parent = f; local lbl = Instance.new("TextLabel"); lbl.Name = "Lbl"; lbl.Text = text; lbl.Font = Enum.Font.SourceSansBold; lbl.TextSize = 14; lbl.TextColor3 = Color3.fromRGB(220, 220, 220); lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.Size = UDim2.new(1, -70, 1, 0); lbl.Parent = f; Instance.new("UIPadding", lbl).PaddingLeft = UDim.new(0, 12); local btn = Instance.new("TextButton"); btn.Name = "Toggle"; btn.Size = UDim2.new(0, 48, 0, 24); btn.Text = ""; btn.BackgroundColor3 = Color3.fromRGB(90, 90, 90); btn.Parent = f; local h = Instance.new("Frame"); h.Name = "Handle"; h.Size = UDim2.new(0, 16, 0, 16); h.Position = UDim2.new(0, 4, 0.5, 0); h.AnchorPoint = Vector2.new(0, 0.5); h.BackgroundColor3 = Color3.fromRGB(255, 255, 255); h.Parent = btn; local e = false; btn.MouseButton1Click:Connect(function() e = not e; local c=e and Color3.fromRGB(74,194,95)or Color3.fromRGB(90,90,90);local p=e and UDim2.new(1,-20,0.5,0)or UDim2.new(0,4,0.5,0);TweenService:Create(btn,TweenInfo.new(0.2),{BackgroundColor3=c}):Play();TweenService:Create(h,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{Position=p}):Play();callback(e) end) end
-local function createSliderOption(parent, text, min, max, initial, callback) local f=Instance.new("Frame");f.Name=text.."Slider";f.Size=UDim2.new(1,0,0,60);f.BackgroundTransparency=1;f.Parent=parent;local tL=Instance.new("UIListLayout");tL.FillDirection=Enum.FillDirection.Horizontal;tL.VerticalAlignment=Enum.VerticalAlignment.Center;tL.Parent=f;local lbl=Instance.new("TextLabel");lbl.Text=text;lbl.Font=Enum.Font.SourceSansBold;lbl.TextSize=14;lbl.TextColor3=Color3.fromRGB(220,220,220);lbl.BackgroundTransparency=1;lbl.TextXAlignment=Enum.TextXAlignment.Left;lbl.Size=UDim2.new(0.5,0,0,20);lbl.Parent=tL;local vL=Instance.new("TextLabel");vL.Text=tostring(initial);vL.Font=Enum.Font.SourceSans;vL.TextSize=14;vL.TextColor3=Color3.fromRGB(200,200,200);vL.BackgroundTransparency=1;vL.TextXAlignment=Enum.TextXAlignment.Right;vL.Size=UDim2.new(0.5,-10,0,20);vL.Parent=tL;local tr=Instance.new("Frame");tr.Size=UDim2.new(1,0,0,8);tr.Position=UDim2.new(0,0,0,25);tr.BackgroundColor3=Color3.fromRGB(60,60,60);tr.Parent=f;Instance.new("UICorner",tr).CornerRadius=UDim.new(1,0);local fl=Instance.new("Frame");fl.Size=UDim2.new((initial-min)/(max-min),0,1,0);fl.BackgroundColor3=Color3.fromRGB(59,130,246);fl.Parent=tr;Instance.new("UICorner",fl).CornerRadius=UDim.new(1,0);local h=Instance.new("TextButton");h.Size=UDim2.new(0,16,0,16);h.AnchorPoint=Vector2.new(0.5,0.5);h.Position=UDim2.new(fl.Size.X.Scale,0,0.5,0);h.BackgroundColor3=Color3.fromRGB(255,255,255);h.Text="";h.Parent=tr;Instance.new("UICorner",h).CornerRadius=UDim.new(1,0);h.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then local mC;mC=UserInputService.InputChanged:Connect(function(mI) if mI.UserInputType==Enum.UserInputType.MouseMovement or mI.UserInputType==Enum.UserInputType.Touch then local nX=math.clamp(mI.Position.X-tr.AbsolutePosition.X,0,tr.AbsoluteSize.X);local p=nX/tr.AbsoluteSize.X;local v=math.floor(min+(max-min)*p+0.5);h.Position=UDim2.new(p,0,0.5,0);fl.Size=UDim2.new(p,0,1,0);vL.Text=tostring(v);callback(v)end end);local uC;uC=UserInputService.InputEnded:Connect(function(uI)if uI.UserInputType==Enum.UserInputType.MouseButton1 or uI.UserInputType==Enum.UserInputType.Touch then mC:Disconnect();uC:Disconnect()end end)end end) end
+local function createTitle(p,t,d) local tL=Instance.new("TextLabel");tL.Text=t;tL.Font=Enum.Font.SourceSansBold;tL.TextSize=20;tL.TextColor3=Color3.fromRGB(240,240,240);tL.BackgroundTransparency=1;tL.TextXAlignment=Enum.TextXAlignment.Left;tL.Size=UDim2.new(1,0,0,24);tL.Parent=p;local dL=Instance.new("TextLabel");dL.Text=d;dL.Font=Enum.Font.SourceSans;dL.TextSize=14;dL.TextColor3=Color3.fromRGB(160,160,160);dL.BackgroundTransparency=1;dL.TextXAlignment=Enum.TextXAlignment.Left;dL.Size=UDim2.new(1,0,0,20);dL.Parent=p end
+local function createToggleOption(p,t,c)local f=Instance.new("Frame");f.Name=t.."Opt";f.Size=UDim2.new(1,0,0,40);f.BackgroundColor3=Color3.fromRGB(60,60,60);f.BackgroundTransparency=0.5;f.Parent=p;Instance.new("UICorner",f).CornerRadius=UDim.new(0,8);local l=Instance.new("UIListLayout");l.FillDirection=Enum.FillDirection.Horizontal;l.VerticalAlignment=Enum.VerticalAlignment.Center;l.HorizontalAlignment=Enum.HorizontalAlignment.Right;l.Padding=UDim.new(0,12);l.Parent=f;local lbl=Instance.new("TextLabel");lbl.Name="Lbl";lbl.Text=t;lbl.Font=Enum.Font.SourceSansBold;lbl.TextSize=14;lbl.TextColor3=Color3.fromRGB(220,220,220);lbl.BackgroundTransparency=1;lbl.TextXAlignment=Enum.TextXAlignment.Left;lbl.Size=UDim2.new(1,-70,1,0);lbl.Parent=f;Instance.new("UIPadding",lbl).PaddingLeft=UDim.new(0,12);local b=Instance.new("TextButton");b.Name="Toggle";b.Size=UDim2.new(0,48,0,24);b.Text="";b.BackgroundColor3=Color3.fromRGB(90,90,90);b.Parent=f;local h=Instance.new("Frame");h.Name="Handle";h.Size=UDim2.new(0,16,0,16);h.Position=UDim2.new(0,4,0.5,0);h.AnchorPoint=Vector2.new(0,0.5);h.BackgroundColor3=Color3.fromRGB(255,255,255);h.Parent=b;local en=false;b.MouseButton1Click:Connect(function()en=not en;local cl=en and Color3.fromRGB(74,194,95)or Color3.fromRGB(90,90,90);local ps=en and UDim2.new(1,-20,0.5,0)or UDim2.new(0,4,0.5,0);TweenService:Create(b,TweenInfo.new(0.2),{BackgroundColor3=cl}):Play();TweenService:Create(h,TweenInfo.new(0.2,Enum.EasingStyle.Quad),{Position=ps}):Play();c(en)end)end
+local function createSliderOption(p,t,min,max,init,c)local f=Instance.new("Frame");f.Name=t.."Slider";f.Size=UDim2.new(1,0,0,60);f.BackgroundTransparency=1;f.Parent=p;local tL=Instance.new("UIListLayout");tL.FillDirection=Enum.FillDirection.Horizontal;tL.VerticalAlignment=Enum.VerticalAlignment.Center;tL.Parent=f;local lbl=Instance.new("TextLabel");lbl.Text=t;lbl.Font=Enum.Font.SourceSansBold;lbl.TextSize=14;lbl.TextColor3=Color3.fromRGB(220,220,220);lbl.BackgroundTransparency=1;lbl.TextXAlignment=Enum.TextXAlignment.Left;lbl.Size=UDim2.new(0.5,0,0,20);lbl.Parent=tL;local vL=Instance.new("TextLabel");vL.Text=tostring(init);vL.Font=Enum.Font.SourceSans;vL.TextSize=14;vL.TextColor3=Color3.fromRGB(200,200,200);vL.BackgroundTransparency=1;vL.TextXAlignment=Enum.TextXAlignment.Right;vL.Size=UDim2.new(0.5,-10,0,20);vL.Parent=tL;local tr=Instance.new("Frame");tr.Size=UDim2.new(1,0,0,8);tr.Position=UDim2.new(0,0,0,25);tr.BackgroundColor3=Color3.fromRGB(60,60,60);tr.Parent=f;Instance.new("UICorner",tr).CornerRadius=UDim.new(1,0);local fl=Instance.new("Frame");fl.Size=UDim2.new((init-min)/(max-min),0,1,0);fl.BackgroundColor3=Color3.fromRGB(59,130,246);fl.Parent=tr;Instance.new("UICorner",fl).CornerRadius=UDim.new(1,0);local h=Instance.new("TextButton");h.Size=UDim2.new(0,16,0,16);h.AnchorPoint=Vector2.new(0.5,0.5);h.Position=UDim2.new(fl.Size.X.Scale,0,0.5,0);h.BackgroundColor3=Color3.fromRGB(255,255,255);h.Text="";h.Parent=tr;Instance.new("UICorner",h).CornerRadius=UDim.new(1,0);h.InputBegan:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then local mC;mC=UserInputService.InputChanged:Connect(function(mI)if mI.UserInputType==Enum.UserInputType.MouseMovement or mI.UserInputType==Enum.UserInputType.Touch then local nX=math.clamp(mI.Position.X-tr.AbsolutePosition.X,0,tr.AbsoluteSize.X);local pct=nX/tr.AbsoluteSize.X;local val=math.floor(min+(max-min)*pct+0.5);h.Position=UDim2.new(pct,0,0.5,0);fl.Size=UDim2.new(pct,0,1,0);vL.Text=tostring(val);c(val)end end);local uC;uC=UserInputService.InputEnded:Connect(function(uI)if uI.UserInputType==Enum.UserInputType.MouseButton1 or uI.UserInputType==Enum.UserInputType.Touch then mC:Disconnect();uC:Disconnect()end end)end end)end
 
 -- Conteúdo das seções
-createTitle(mainContent, "MAIN", "Controles principais do mod.")
-createToggleOption(mainContent, "Modo Deus", setGodMode)
-createToggleOption(mainContent, "Forcefield", setForcefield)
-createToggleOption(mainContent, "Voo", setFly)
-createToggleOption(mainContent, "Noclip", setNoclip)
-createToggleOption(mainContent, "ESP", setEsp)
-createToggleOption(mainContent, "Aimbot", setAimbot)
-createSliderOption(mainContent, "Velocidade", 16, 200, originalWalkSpeed, setSpeed)
-
-createTitle(playersContent, "Players", "Lista de jogadores no servidor.")
-local updatePlayersButton = Instance.new("TextButton"); updatePlayersButton.Name = "UpdatePlayersButton"; updatePlayersButton.Text = "Atualizar Lista de Jogadores"; updatePlayersButton.Font = Enum.Font.SourceSansBold; updatePlayersButton.TextSize = 14; updatePlayersButton.TextColor3 = Color3.fromRGB(255, 255, 255); updatePlayersButton.BackgroundColor3 = Color3.fromRGB(59, 130, 246); updatePlayersButton.Size = UDim2.new(1, 0, 0, 36); updatePlayersButton.Parent = playersContent; Instance.new("UICorner", updatePlayersButton).CornerRadius = UDim.new(0, 8);
-local playerListContainer = Instance.new("ScrollingFrame"); playerListContainer.Name = "PlayerListContainer"; playerListContainer.Size = UDim2.new(1, 0, 1, -120); playerListContainer.BackgroundTransparency = 1; playerListContainer.BorderSizePixel = 0; playerListContainer.ScrollBarThickness = 6; playerListContainer.Parent = playersContent; Instance.new("UIListLayout", playerListContainer).Padding = UDim.new(0, 4);
-
-createTitle(settingsContent, "Settings", "Ajuste as configurações do mod.")
-createSliderOption(settingsContent, "Transparência do Painel", 10, 90, 70, function(v) modPanel.BackgroundTransparency = 1 - (v/100) end)
-
-createTitle(aiContent, "AI ASSISTANT", "Digite 'ajuda' para ver a lista de comandos.")
-local chatLogContainer = Instance.new("ScrollingFrame"); chatLogContainer.Size = UDim2.new(1, 0, 1, -80); chatLogContainer.BackgroundColor3 = Color3.fromRGB(30,30,30); chatLogContainer.BorderSizePixel = 0; chatLogContainer.ScrollBarThickness = 6; chatLogContainer.Parent = aiContent; Instance.new("UICorner", chatLogContainer).CornerRadius = UDim.new(0,8); local chatLogLayout = Instance.new("UIListLayout"); chatLogLayout.Padding = UDim.new(0, 5); chatLogLayout.Parent = chatLogContainer;
-local commandInput = Instance.new("TextBox"); commandInput.Size = UDim2.new(1, 0, 0, 36); commandInput.BackgroundColor3 = Color3.fromRGB(45,45,45); commandInput.Font = Enum.Font.SourceSans; commandInput.TextSize = 14; commandInput.TextColor3 = Color3.fromRGB(220,220,220); commandInput.PlaceholderText = "Digite seu comando aqui..."; commandInput.ClearTextOnFocus = false; commandInput.Parent = aiContent; Instance.new("UICorner", commandInput).CornerRadius = UDim.new(0,8);
+createTitle(mainContent,"MAIN","Controles principais do mod.");createToggleOption(mainContent,"Modo Deus",setGodMode);createToggleOption(mainContent,"Forcefield",setForcefield);createToggleOption(mainContent,"Voo",setFly);createToggleOption(mainContent,"Noclip",setNoclip);createToggleOption(mainContent,"ESP",setEsp);createToggleOption(mainContent,"Aimbot",setAimbot);createToggleOption(mainContent,"Tiro Automático",function(e)isAutoFireEnabled=e end);createSliderOption(mainContent,"Velocidade",16,200,originalWalkSpeed,setSpeed);
+createTitle(playersContent,"Players","Lista de jogadores no servidor.");local updatePlayersButton=Instance.new("TextButton");updatePlayersButton.Name="UpdatePlayersButton";updatePlayersButton.Text="Atualizar Lista de Jogadores";updatePlayersButton.Font=Enum.Font.SourceSansBold;updatePlayersButton.TextSize=14;updatePlayersButton.TextColor3=Color3.fromRGB(255,255,255);updatePlayersButton.BackgroundColor3=Color3.fromRGB(59,130,246);updatePlayersButton.Size=UDim2.new(1,0,0,36);updatePlayersButton.Parent=playersContent;Instance.new("UICorner",updatePlayersButton).CornerRadius=UDim.new(0,8);local playerListContainer=Instance.new("ScrollingFrame");playerListContainer.Name="PlayerListContainer";playerListContainer.Size=UDim2.new(1,0,1,-120);playerListContainer.BackgroundTransparency=1;playerListContainer.BorderSizePixel=0;playerListContainer.ScrollBarThickness=6;playerListContainer.Parent=playersContent;Instance.new("UIListLayout",playerListContainer).Padding=UDim.new(0,4);
+createTitle(settingsContent,"Settings","Ajuste as configurações do mod.");createSliderOption(settingsContent,"Transparência do Painel",10,90,30,function(v)modPanel.BackgroundTransparency=v/100 end);
+createTitle(aiContent,"AI ASSISTANT","Digite 'ajuda' para ver a lista de comandos.");local chatLogContainer=Instance.new("ScrollingFrame");chatLogContainer.Size=UDim2.new(1,0,1,-80);chatLogContainer.BackgroundColor3=Color3.fromRGB(30,30,30);chatLogContainer.BorderSizePixel=0;chatLogContainer.ScrollBarThickness=6;chatLogContainer.Parent=aiContent;Instance.new("UICorner",chatLogContainer).CornerRadius=UDim.new(0,8);local chatLogLayout=Instance.new("UIListLayout");chatLogLayout.Padding=UDim.new(0,5);chatLogLayout.Parent=chatLogContainer;local commandInput=Instance.new("TextBox");commandInput.Size=UDim2.new(1,0,0,36);commandInput.BackgroundColor3=Color3.fromRGB(45,45,45);commandInput.Font=Enum.Font.SourceSans;commandInput.TextSize=14;commandInput.TextColor3=Color3.fromRGB(220,220,220);commandInput.PlaceholderText="Digite seu comando aqui...";commandInput.ClearTextOnFocus=false;commandInput.Parent=aiContent;Instance.new("UICorner",commandInput).CornerRadius=UDim.new(0,8);
 
 -- Elementos Adicionais
-local minimizedPanel = Instance.new("TextButton"); minimizedPanel.Name = "MinimizedPanel"; minimizedPanel.Size = UDim2.new(0, 120, 0, 36); minimizedPanel.Position = UDim2.new(1, -140, 1, -50); minimizedPanel.Text = "CALVO MOD"; minimizedPanel.Font = Enum.Font.SourceSansBold; minimizedPanel.TextSize = 14; minimizedPanel.TextColor3 = Color3.fromRGB(255, 255, 255); minimizedPanel.BackgroundColor3 = Color3.fromRGB(40, 40, 40); minimizedPanel.BackgroundTransparency = 0.2; minimizedPanel.Visible = false; minimizedPanel.Parent = screenGui; Instance.new("UICorner", minimizedPanel).CornerRadius = UDim.new(0, 8); Instance.new("UIStroke", minimizedPanel).Transparency = 0.8;
-stopSpectateButton = Instance.new("TextButton"); stopSpectateButton.Name = "StopSpectateButton"; stopSpectateButton.Size = UDim2.new(0, 150, 0, 40); stopSpectateButton.Position = UDim2.new(0.5, -75, 1, -60); stopSpectateButton.Text = "Parar de Telar"; stopSpectateButton.Font = Enum.Font.SourceSansBold; stopSpectateButton.TextColor3 = Color3.fromRGB(255,255,255); stopSpectateButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50); stopSpectateButton.Visible = false; stopSpectateButton.Parent = screenGui; Instance.new("UICorner", stopSpectateButton).CornerRadius = UDim.new(0,8);
-flyButtonsFrame = Instance.new("Frame"); flyButtonsFrame.Name = "FlyButtons"; flyButtonsFrame.Size = UDim2.new(0, 200, 0, 80); flyButtonsFrame.Position = UDim2.new(1, -220, 0.5, -40); flyButtonsFrame.BackgroundTransparency = 1; flyButtonsFrame.Visible = false; flyButtonsFrame.Parent = screenGui; local flyButtonsLayout = Instance.new("UIListLayout"); flyButtonsLayout.FillDirection = Enum.FillDirection.Horizontal; flyButtonsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; flyButtonsLayout.VerticalAlignment = Enum.VerticalAlignment.Center; flyButtonsLayout.Padding = UDim.new(0,10); flyButtonsLayout.Parent = flyButtonsFrame;
-local flyUpButton = Instance.new("TextButton"); flyUpButton.Text = "⬆"; flyUpButton.Size = UDim2.new(0,80,0,80); flyUpButton.BackgroundColor3 = Color3.fromRGB(0,0,0); flyUpButton.BackgroundTransparency = 0.5; flyUpButton.TextColor3 = Color3.fromRGB(255,255,255); flyUpButton.Font = Enum.Font.SourceSansBold; flyUpButton.TextSize = 40; flyUpButton.Parent = flyButtonsFrame; Instance.new("UICorner", flyUpButton).CornerRadius = UDim.new(1,0);
-local flyDownButton = Instance.new("TextButton"); flyDownButton.Text = "⬇"; flyDownButton.Size = UDim2.new(0,80,0,80); flyDownButton.BackgroundColor3 = Color3.fromRGB(0,0,0); flyDownButton.BackgroundTransparency = 0.5; flyDownButton.TextColor3 = Color3.fromRGB(255,255,255); flyDownButton.Font = Enum.Font.SourceSansBold; flyDownButton.TextSize = 40; flyDownButton.Parent = flyButtonsFrame; Instance.new("UICorner", flyDownButton).CornerRadius = UDim.new(1,0);
-flyUpButton.InputBegan:Connect(function() while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and isFlying and getCharacter() and rootPart:FindFirstChild("FlyVelocity") do rootPart.FlyVelocity.Velocity += Vector3.new(0, 2, 0); RunService.Heartbeat:Wait() end end);
-flyDownButton.InputBegan:Connect(function() while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) and isFlying and getCharacter() and rootPart:FindFirstChild("FlyVelocity") do rootPart.FlyVelocity.Velocity -= Vector3.new(0, 2, 0); RunService.Heartbeat:Wait() end end);
-local contextMenu = Instance.new("Frame"); contextMenu.Name = "PlayerContextMenu"; contextMenu.Size = UDim2.new(0, 150, 0, 140); contextMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 40); contextMenu.BorderSizePixel = 0; contextMenu.Visible = false; contextMenu.Parent = screenGui; Instance.new("UICorner", contextMenu).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", contextMenu).Color = Color3.fromRGB(100,100,100); local cmLayout = Instance.new("UIListLayout"); cmLayout.Padding = UDim.new(0, 4); cmLayout.Parent = contextMenu; local cmPadding = Instance.new("UIPadding"); cmPadding.PaddingTop = UDim.new(0,4); cmPadding.PaddingBottom = UDim.new(0,4); cmPadding.Parent = contextMenu;
+local minimizedPanel=Instance.new("TextButton");minimizedPanel.Name="MinimizedPanel";minimizedPanel.Size=UDim2.new(0,120,0,36);minimizedPanel.Position=UDim2.new(1,-140,1,-50);minimizedPanel.Text="CALVO MOD";minimizedPanel.Font=Enum.Font.SourceSansBold;minimizedPanel.TextSize=14;minimizedPanel.TextColor3=Color3.fromRGB(255,255,255);minimizedPanel.BackgroundColor3=Color3.fromRGB(40,40,40);minimizedPanel.BackgroundTransparency=0.2;minimizedPanel.Visible=false;minimizedPanel.Parent=screenGui;Instance.new("UICorner",minimizedPanel).CornerRadius=UDim.new(0,8);Instance.new("UIStroke",minimizedPanel).Transparency=0.8;
+stopSpectateButton=Instance.new("TextButton");stopSpectateButton.Name="StopSpectateButton";stopSpectateButton.Size=UDim2.new(0,150,0,40);stopSpectateButton.Position=UDim2.new(0.5,-75,1,-60);stopSpectateButton.Text="Parar de Telar";stopSpectateButton.Font=Enum.Font.SourceSansBold;stopSpectateButton.TextColor3=Color3.fromRGB(255,255,255);stopSpectateButton.BackgroundColor3=Color3.fromRGB(220,50,50);stopSpectateButton.Visible=false;stopSpectateButton.Parent=screenGui;Instance.new("UICorner",stopSpectateButton).CornerRadius=UDim.new(0,8);
+flyButtonsFrame=Instance.new("Frame");flyButtonsFrame.Name="FlyButtons";flyButtonsFrame.Size=UDim2.new(0,200,0,80);flyButtonsFrame.Position=UDim2.new(1,-220,0.5,-40);flyButtonsFrame.BackgroundTransparency=1;flyButtonsFrame.Visible=false;flyButtonsFrame.Parent=screenGui;local fBL=Instance.new("UIListLayout");fBL.FillDirection=Enum.FillDirection.Horizontal;fBL.HorizontalAlignment=Enum.HorizontalAlignment.Center;fBL.VerticalAlignment=Enum.VerticalAlignment.Center;fBL.Padding=UDim.new(0,10);fBL.Parent=flyButtonsFrame;local fUB=Instance.new("TextButton");fUB.Text="⬆";fUB.Size=UDim2.new(0,80,0,80);fUB.BackgroundColor3=Color3.fromRGB(0,0,0);fUB.BackgroundTransparency=0.5;fUB.TextColor3=Color3.fromRGB(255,255,255);fUB.Font=Enum.Font.SourceSansBold;fUB.TextSize=40;fUB.Parent=flyButtonsFrame;Instance.new("UICorner",fUB).CornerRadius=UDim.new(1,0);local fDB=Instance.new("TextButton");fDB.Text="⬇";fDB.Size=UDim2.new(0,80,0,80);fDB.BackgroundColor3=Color3.fromRGB(0,0,0);fDB.BackgroundTransparency=0.5;fDB.TextColor3=Color3.fromRGB(255,255,255);fDB.Font=Enum.Font.SourceSansBold;fDB.TextSize=40;fDB.Parent=flyButtonsFrame;Instance.new("UICorner",fDB).CornerRadius=UDim.new(1,0);fUB.InputBegan:Connect(function()while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)and isFlying and getCharacter()and rootPart:FindFirstChild("FlyVelocity")do rootPart.FlyVelocity.Velocity+=Vector3.new(0,2,0);RunService.Heartbeat:Wait()end end);fDB.InputBegan:Connect(function()while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)and isFlying and getCharacter()and rootPart:FindFirstChild("FlyVelocity")do rootPart.FlyVelocity.Velocity-=Vector3.new(0,2,0);RunService.Heartbeat:Wait()end end);
+local contextMenu=Instance.new("Frame");contextMenu.Name="PlayerContextMenu";contextMenu.Size=UDim2.new(0,150,0,140);contextMenu.BackgroundColor3=Color3.fromRGB(40,40,40);contextMenu.BorderSizePixel=0;contextMenu.Visible=false;contextMenu.Parent=screenGui;Instance.new("UICorner",contextMenu).CornerRadius=UDim.new(0,6);Instance.new("UIStroke",contextMenu).Color=Color3.fromRGB(100,100,100);local cML=Instance.new("UIListLayout");cML.Padding=UDim.new(0,4);cML.Parent=contextMenu;local cMP=Instance.new("UIPadding");cMP.PaddingTop=UDim.new(0,4);cMP.PaddingBottom=UDim.new(0,4);cMP.Parent=contextMenu;
 
 --======= LÓGICA DO ASSISTENTE AI E GERAL DO PAINEL =======--
-local function addLogMessage(msg,c) local l=Instance.new("TextLabel");l.Text="  "..msg;l.Font=Enum.Font.Code;l.TextSize=14;l.TextColor3=c or Color3.fromRGB(200,200,200);l.BackgroundTransparency=1;l.TextXAlignment=Enum.TextXAlignment.Left;l.TextWrapped=true;l.Size=UDim2.new(1,0,0,0);l.AutomaticSize=Enum.AutomaticSize.Y;l.Parent=chatLogContainer;chatLogContainer.CanvasPosition=Vector2.new(0,chatLogLayout.AbsoluteContentSize.Y)end
-local function findPlayer(partialName) if not partialName then return nil end; local pName = partialName:lower(); for _, player in ipairs(Players:GetPlayers()) do if player.Name:lower():find(pName, 1, true) or player.DisplayName:lower():find(pName, 1, true) then return player end end; return nil end
-local function parseCommand(cmdTxt) addLogMessage("> "..cmdTxt,Color3.fromRGB(150,150,255));local a=cmdTxt:lower():split(" ");local c=a[1];local t,v;if #a>1 then t=findPlayer(a[2]);v=tonumber(a[2])end;if c=="fly"then setFly(not isFlying);addLogMessage("Voo "..(isFlying and"ativado."or"desativado."))elseif c=="speed"then if v then setSpeed(v);addLogMessage("Speed: "..v)else addLogMessage("Uso: speed [num]")end elseif c=="god"then local s=a[2]=="on";setGodMode(s);addLogMessage("God "..(s and"on"or"off"))elseif c=="ff"then local s=a[2]=="on";setForcefield(s);addLogMessage("FF "..(s and"on"or"off"))elseif c=="noclip"then setNoclip(not isNoclip);addLogMessage("Noclip "..(isNoclip and"on"or"off"))elseif c=="esp"then setEsp(not isEspEnabled);addLogMessage("ESP "..(isEspEnabled and"on"or"off"))elseif c=="aimbot"then setAimbot(not isAimbotEnabled);addLogMessage("Aimbot "..(isAimbotEnabled and"on"or"off"))elseif c=="tp"then if t then teleportToPlayer(t);addLogMessage("TP > "..t.Name)else addLogMessage("Não encontrado")end elseif c=="puxar"then if t then pullPlayer(t);addLogMessage("Puxando "..t.Name)else addLogMessage("Não encontrado")end elseif c=="copiar"then if t then copySkin(t);addLogMessage("Skin < "..t.Name)else addLogMessage("Não encontrado")end elseif c=="telar"then if t then spectatePlayer(t);addLogMessage("Telando "..t.Name)else addLogMessage("Não encontrado")end elseif c=="stop"then spectatePlayer(nil,true);addLogMessage("Parado.")elseif c=="help"then addLogMessage("Comandos: fly, speed, god, ff, noclip, esp, aimbot, tp, puxar, copiar, telar, stop.",Color3.fromRGB(100,255,100))else addLogMessage("Comando inválido.",Color3.fromRGB(255,100,100))end end
-commandInput.FocusLost:Connect(function(enter) if enter and commandInput.Text~=""then parseCommand(commandInput.Text);commandInput.Text=""end end)
-local function makeDraggable(trigger,target)local d=false;local s,p;trigger.InputBegan:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then d=true;s=i.Position;p=target.Position;local c;c=i.Changed:Connect(function()if i.UserInputState==Enum.UserInputState.End then d=false;c:Disconnect()end end)end end);UserInputService.InputChanged:Connect(function(i)if d and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local dl=i.Position-s;target.Position=UDim2.new(p.X.Scale,p.X.Offset+dl.X,p.Y.Scale,p.Y.Offset+dl.Y)end end)end
-makeDraggable(panelHeader, modPanel); makeDraggable(minimizedPanel, minimizedPanel);
-closeButton.MouseButton1Click:Connect(function() modPanel.Visible=false; spectatePlayer(nil,true); setEsp(false) end); minimizeButton.MouseButton1Click:Connect(function() modPanel.Visible=false; minimizedPanel.Visible=true end); minimizedPanel.MouseButton1Click:Connect(function() modPanel.Visible=true; minimizedPanel.Visible=false end)
-stopSpectateButton.MouseButton1Click:Connect(function() spectatePlayer(nil, true) end)
+local function addLogMessage(m,c)local l=Instance.new("TextLabel");l.Text="  "..m;l.Font=Enum.Font.Code;l.TextSize=14;l.TextColor3=c or Color3.fromRGB(200,200,200);l.BackgroundTransparency=1;l.TextXAlignment=Enum.TextXAlignment.Left;l.TextWrapped=true;l.Size=UDim2.new(1,0,0,0);l.AutomaticSize=Enum.AutomaticSize.Y;l.Parent=chatLogContainer;chatLogContainer.CanvasPosition=Vector2.new(0,chatLogLayout.AbsoluteContentSize.Y)end
+local function findPlayer(pN)if not pN then return nil end;local lN=pN:lower();for _,p in ipairs(Players:GetPlayers())do if p.Name:lower():find(lN,1,true)or p.DisplayName:lower():find(lN,1,true)then return p end end;return nil end
+local function parseCommand(cT)addLogMessage("> "..cT,Color3.fromRGB(150,150,255));local a=cT:lower():split(" ");local c=a[1];local t,v;if #a>1 then t=findPlayer(a[2]);v=tonumber(a[2])end;if c=="fly"then setFly(not isFlying);addLogMessage("Voo "..(isFlying and"on"or"off"))elseif c=="speed"then if v then setSpeed(v);addLogMessage("Speed: "..v)else addLogMessage("Uso: speed [num]")end elseif c=="god"then local s=a[2]=="on";setGodMode(s);addLogMessage("God "..(s and"on"or"off"))elseif c=="ff"then local s=a[2]=="on";setForcefield(s);addLogMessage("FF "..(s and"on"or"off"))elseif c=="noclip"then setNoclip(not isNoclip);addLogMessage("Noclip "..(isNoclip and"on"or"off"))elseif c=="esp"then setEsp(not isEspEnabled);addLogMessage("ESP "..(isEspEnabled and"on"or"off"))elseif c=="aimbot"then setAimbot(not isAimbotEnabled);addLogMessage("Aimbot "..(isAimbotEnabled and"on"or"off"))elseif c=="autofire"then isAutoFireEnabled=a[2]=="on";addLogMessage("Autofire "..(isAutoFireEnabled and"on"or"off"))elseif c=="tp"then if t then teleportToPlayer(t);addLogMessage("TP > "..t.Name)else addLogMessage("Não encontrado")end elseif c=="puxar"then if t then pullPlayer(t);addLogMessage("Puxando "..t.Name)else addLogMessage("Não encontrado")end elseif c=="copiar"then if t then copySkin(t);addLogMessage("Skin < "..t.Name)else addLogMessage("Não encontrado")end elseif c=="telar"then if t then spectatePlayer(t);addLogMessage("Telando "..t.Name)else addLogMessage("Não encontrado")end elseif c=="stop"then spectatePlayer(nil,true);addLogMessage("Parado.")elseif c=="help"then addLogMessage("Comandos: fly, speed, god, ff, noclip, esp, aimbot, autofire, tp, puxar, copiar, telar, stop.",Color3.fromRGB(100,255,100))else addLogMessage("Comando inválido.",Color3.fromRGB(255,100,100))end end
+commandInput.FocusLost:Connect(function(e)if e and commandInput.Text~=""then parseCommand(commandInput.Text);commandInput.Text=""end end)
+local function makeDraggable(tr,ta)local d=false;local s,p;tr.InputBegan:Connect(function(i)if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then d=true;s=i.Position;p=ta.Position;local c;c=i.Changed:Connect(function()if i.UserInputState==Enum.UserInputState.End then d=false;c:Disconnect()end end)end end);UserInputService.InputChanged:Connect(function(i)if d and(i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch)then local dl=i.Position-s;ta.Position=UDim2.new(p.X.Scale,p.X.Offset+dl.X,p.Y.Scale,p.Y.Offset+dl.Y)end end)end
+makeDraggable(panelHeader,modPanel);makeDraggable(minimizedPanel,minimizedPanel);
+closeButton.MouseButton1Click:Connect(function()modPanel.Visible=false;spectatePlayer(nil,true);setEsp(false)end);minimizeButton.MouseButton1Click:Connect(function()modPanel.Visible=false;minimizedPanel.Visible=true end);minimizedPanel.MouseButton1Click:Connect(function()modPanel.Visible=true;minimizedPanel.Visible=false end)
+stopSpectateButton.MouseButton1Click:Connect(function()spectatePlayer(nil,true)end)
 local menuButtons={};local function createMenuButton(txt,id,icn,o)local b=Instance.new("TextButton");b.Name=txt.."Btn";b.Size=UDim2.new(1,0,0,40);b.Text="";b.BackgroundColor3=Color3.fromRGB(255,255,255);b.BackgroundTransparency=1;b.LayoutOrder=o;b.Parent=sidebar;local l=Instance.new("UIListLayout");l.FillDirection=Enum.FillDirection.Horizontal;l.VerticalAlignment=Enum.VerticalAlignment.Center;l.Padding=UDim.new(0,10);l.Parent=b;local sI=Instance.new("Frame");sI.Name="Indicator";sI.Size=UDim2.new(0,2,1,0);sI.BackgroundColor3=Color3.fromRGB(59,130,246);sI.BorderSizePixel=0;sI.Visible=false;sI.Parent=b;local img=Instance.new("ImageLabel");img.Image=icn;img.Size=UDim2.new(0,20,0,20);img.BackgroundTransparency=1;img.ImageColor3=Color3.fromRGB(200,200,200);img.Parent=b;local lbl=Instance.new("TextLabel");lbl.Text=txt:upper();lbl.Font=Enum.Font.SourceSans;lbl.TextSize=14;lbl.TextColor3=Color3.fromRGB(200,200,200);lbl.BackgroundTransparency=1;lbl.TextXAlignment=Enum.TextXAlignment.Left;lbl.Size=UDim2.new(1,-32,1,0);lbl.Parent=b;table.insert(menuButtons,{button=b,target=id,indicator=sI});return b end
 createMenuButton("MAIN","main-content","rbxassetid://7923390289",1);createMenuButton("Players","players-content","rbxassetid://7923401584",2);createMenuButton("AI","ai-content","rbxassetid://10698223992",3);createMenuButton("Settings","settings-content","rbxassetid://7923396924",4);
 local function switchTab(id)for _,c in pairs(contentArea:GetChildren())do if c:IsA("Frame")then c.Visible=(c.Name==id)end end;for _,m in ipairs(menuButtons)do local s=(m.target==id);m.indicator.Visible=s;m.button.BackgroundTransparency=s and 0.8 or 1 end end
 for _,m in ipairs(menuButtons)do m.button.MouseButton1Click:Connect(function()switchTab(m.target);contextMenu.Visible=false end)end
 local function createContextMenuButton(txt,cb)local b=Instance.new("TextButton");b.Name=txt.."Btn";b.Size=UDim2.new(1,-8,0,30);b.Position=UDim2.new(0.5,0,0,0);b.AnchorPoint=Vector2.new(0.5,0);b.Text=txt;b.Font=Enum.Font.SourceSans;b.TextSize=14;b.TextColor3=Color3.fromRGB(220,220,220);b.BackgroundTransparency=1;b.Parent=contextMenu;b.MouseButton1Click:Connect(function()contextMenu.Visible=false;if currentPlayerTarget then cb(currentPlayerTarget)end end)end
 createContextMenuButton("Teleportar",teleportToPlayer);createContextMenuButton("Puxar Jogador",pullPlayer);createContextMenuButton("Copiar Skin",copySkin);createContextMenuButton("Telar Jogador",function(t)spectatePlayer(t,false)end)
-local function renderPlayerList()for _,c in ipairs(playerListContainer:GetChildren())do if not c:IsA("UILayout")then c:Destroy()end end;for _,p in ipairs(Players:GetPlayers())do if p~=localPlayer then local f=Instance.new("Frame");f.Name=p.Name;f.Size=UDim2.new(1,0,0,40);f.BackgroundColor3=Color3.fromRGB(70,70,70);f.BackgroundTransparency=0.5;f.Parent=playerListContainer;Instance.new("UICorner",f).CornerRadius=UDim.new(0,6);local l=Instance.new("UIListLayout");l.FillDirection=Enum.FillDirection.Horizontal;l.VerticalAlignment=Enum.VerticalAlignment.Center;l.Padding=UDim.new(0,10);l.Parent=f;local pad=Instance.new("UIPadding");pad.PaddingLeft=UDim.new(0,10);pad.PaddingRight=UDim.new(0,10);pad.Parent=f;local pN=Instance.new("TextLabel");pN.Text=p.DisplayName;pN.Font=Enum.Font.SourceSans;pN.TextSize=14;pN.TextColor3=Color3.fromRGB(220,220,220);pN.BackgroundTransparency=1;pN.TextXAlignment=Enum.TextXAlignment.Left;pN.Size=UDim2.new(1,-80,1,0);pN.Parent=f;local aB=Instance.new("TextButton");aB.Text="Ação";aB.Font=Enum.Font.SourceSansBold;aB.TextSize=12;aB.TextColor3=Color3.fromRGB(255,255,255);aB.BackgroundColor3=Color3.fromRGB(90,90,90);aB.Size=UDim2.new(0,60,0,24);aB.Parent=f;Instance.new("UICorner",aB).CornerRadius=UDim.new(0,4);aB.MouseButton1Click:Connect(function()currentPlayerTarget=p;contextMenu.Position=UDim2.fromOffset(UserInputService:GetMouseLocation().X,UserInputService:GetMouseLocation().Y);contextMenu.Visible=true end)end end end
+local function renderPlayerList() for _,c in ipairs(playerListContainer:GetChildren())do if not c:IsA("UILayout")then c:Destroy()end end;for _,p in ipairs(Players:GetPlayers())do if p~=localPlayer then local f=Instance.new("Frame");f.Name=p.Name;f.Size=UDim2.new(1,0,0,40);f.BackgroundColor3=Color3.fromRGB(70,70,70);f.BackgroundTransparency=0.5;f.Parent=playerListContainer;Instance.new("UICorner",f).CornerRadius=UDim.new(0,6);local l=Instance.new("UIListLayout");l.FillDirection=Enum.FillDirection.Horizontal;l.VerticalAlignment=Enum.VerticalAlignment.Center;l.Padding=UDim.new(0,5);l.Parent=f;local pad=Instance.new("UIPadding");pad.PaddingLeft=UDim.new(0,10);pad.PaddingRight=UDim.new(0,10);pad.Parent=f;local pN=Instance.new("TextLabel");pN.Text=p.DisplayName;pN.Font=Enum.Font.SourceSans;pN.TextSize=14;pN.TextColor3=Color3.fromRGB(220,220,220);pN.BackgroundTransparency=1;pN.TextXAlignment=Enum.TextXAlignment.Left;pN.Size=UDim2.new(1,-150,1,0);pN.Parent=f;local aB=Instance.new("TextButton");aB.Text="Ação";aB.Font=Enum.Font.SourceSansBold;aB.TextSize=12;aB.TextColor3=Color3.fromRGB(255,255,255);aB.BackgroundColor3=Color3.fromRGB(90,90,90);aB.Size=UDim2.new(0,60,0,24);aB.Parent=f;Instance.new("UICorner",aB).CornerRadius=UDim.new(0,4);aB.MouseButton1Click:Connect(function()currentPlayerTarget=p;contextMenu.Position=UDim2.fromOffset(UserInputService:GetMouseLocation().X,UserInputService:GetMouseLocation().Y);contextMenu.Visible=true end);local lB=Instance.new("TextButton");lB.Name="LockButton";lB.Font=Enum.Font.SourceSansBold;lB.TextSize=12;lB.TextColor3=Color3.fromRGB(255,255,255);lB.Size=UDim2.new(0,75,0,24);lB.Parent=f;Instance.new("UICorner",lB).CornerRadius=UDim.new(0,4);if manualAimbotTarget==p then lB.Text="Destravar";lB.BackgroundColor3=Color3.fromRGB(220,50,50)else lB.Text="Travar Mira";lB.BackgroundColor3=Color3.fromRGB(70,70,180)end;lB.MouseButton1Click:Connect(function()if manualAimbotTarget==p then manualAimbotTarget=nil;aimbotMode="auto"else manualAimbotTarget=p;aimbotMode="manual"end;renderPlayerList()end)end end end
 updatePlayersButton.MouseButton1Click:Connect(renderPlayerList)
 UserInputService.InputBegan:Connect(function(i,gp)if not gp and i.UserInputType==Enum.UserInputType.MouseButton1 then if contextMenu.Visible then local o=playerGui:GetGuiObjectsAtPosition(i.Position.X,i.Position.Y);local c=false;for _,v in pairs(o)do if v:IsDescendantOf(contextMenu)then c=true;break end end;if not c then contextMenu.Visible=false end end end end)
 
 --======= INICIALIZAÇÃO =======--
 switchTab("main-content")
-addLogMessage("Bem-vindo ao CALVO MOD v4.0! Digite 'ajuda' para começar.", Color3.fromRGB(100, 255, 100))
-print("Painel CALVO MOD v4.0 (Aimbot & ESP Edition) carregado com sucesso.")
+addLogMessage("Bem-vindo ao CALVO MOD v5.0! Digite 'ajuda' para começar.", Color3.fromRGB(100, 255, 100))
+print("Painel CALVO MOD v5.0 (Smart Aimbot Edition) carregado com sucesso.")
