@@ -8,8 +8,8 @@ local UserInputService = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
--- Palavra-chave esperada (opcional, qualquer texto ativa a análise)
-local TRIGGER_COMMAND = "analisar"
+-- [CORREÇÃO 1] Adiciona uma pequena pausa para garantir que o jogo carregou
+task.wait(3)
 
 --======= FUNÇÃO DE ANÁLISE "INTELIGENTE" =======--
 
@@ -70,9 +70,8 @@ local function createAnalyzerPanel()
     local analyzeButton = Instance.new("TextButton"); analyzeButton.Name = "AnalyzeButton"; analyzeButton.Size = UDim2.new(1, 0, 0, 35); analyzeButton.Position = UDim2.new(0.5, 0, 1, 0); analyzeButton.AnchorPoint = Vector2.new(0.5, 1); analyzeButton.Text = "Analisar"; analyzeButton.Font = Enum.Font.SourceSansBold; analyzeButton.TextSize = 14; analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200); analyzeButton.TextColor3 = Color3.fromRGB(255, 255, 255); analyzeButton.Parent = contentFrame;
     Instance.new("UICorner", analyzeButton).CornerRadius = UDim.new(0, 6);
     
-    -- Funcionalidades do Painel
     analyzeButton.MouseButton1Click:Connect(function()
-        if commandInput.Text:lower() == TRIGGER_COMMAND then
+        if commandInput.Text:lower():match("analisar") then
             analyzeButton.Text = "Analisando..."
             task.wait(0.2) 
             
@@ -103,5 +102,8 @@ local function createAnalyzerPanel()
     makeDraggable(header, mainPanel)
 end
 
--- Iniciar
-createAnalyzerPanel()```
+-- [CORREÇÃO 2] Protege a chamada principal contra erros
+local success, err = pcall(createAnalyzerPanel)
+if not success then
+    warn("CALVO ANALYZER: Falha ao criar o painel. Erro: ", err)
+end```
