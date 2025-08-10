@@ -1,6 +1,5 @@
---======= SERVIços E VARIÁVEIS GLOBAIS =======--
+--======= SERVIÇOS E VARIÁVEIS GLOBAIS =======--
 local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -8,10 +7,13 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
+-- Palavra-chave para ativar a análise
+local TRIGGER_COMMAND = "analisar"
+
 --======= FUNÇÃO DE ANÁLISE "INTELIGENTE" =======--
 
 local function analyzeGame()
-    local info = {} -- Usaremos uma tabela para construir a string de forma eficiente
+    local info = {}
 
     local function add(text)
         table.insert(info, text)
@@ -21,7 +23,7 @@ local function analyzeGame()
     add("Data da Análise (UTC): " .. os.date("!*t").day .. "/" .. os.date("!*t").month .. "/" .. os.date("!*t").year)
     add("")
 
-    -- Seção 1: Informações Gerais do Jogo
+    -- 1. Informações Gerais
     add("--- 1. INFORMAÇÕES GERAIS ---")
     local success, result = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
     if success and result then
@@ -31,16 +33,16 @@ local function analyzeGame()
     add("Game ID (Universe ID): " .. tostring(game.GameId))
     add("")
 
-    -- Seção 2: Estrutura do Workspace
+    -- 2. Workspace
     add("--- 2. ESTRUTURA DO WORKSPACE (Pastas Principais) ---")
     for _, child in ipairs(workspace:GetChildren()) do
-        if not child:IsA("Terrain") and not child:IsA("Camera") and #child:GetChildren() > 0 then -- Apenas mostra itens que contêm outros itens (como pastas)
+        if not child:IsA("Terrain") and not child:IsA("Camera") and #child:GetChildren() > 0 then
             add("- " .. child.Name .. " (" .. child.ClassName .. ")")
         end
     end
     add("")
 
-    -- Seção 3: Personagem do Jogador
+    -- 3. Personagem
     add("--- 3. PERSONAGEM DO JOGADOR ("..localPlayer.Name..") ---")
     local character = localPlayer.Character
     if character then
@@ -52,7 +54,7 @@ local function analyzeGame()
     end
     add("")
     
-    -- Seção 4: Mochila (Backpack)
+    -- 4. Mochila
     add("--- 4. ITENS NA MOCHILA ---")
     local backpack = localPlayer:FindFirstChild("Backpack")
     if backpack then
@@ -69,14 +71,14 @@ local function analyzeGame()
     end
     add("")
 
-    -- Seção 5: ReplicatedStorage (Eventos, Módulos, etc.)
+    -- 5. ReplicatedStorage
     add("--- 5. REPLICATEDSTORAGE ---")
     for _, child in ipairs(ReplicatedStorage:GetChildren()) do
         add("- " .. child.Name .. " (" .. child.ClassName .. ")")
     end
     add("")
 
-    -- Seção 6: Configurações de Iluminação
+    -- 6. Iluminação
     add("--- 6. CONFIGURAÇÕES DE ILUMINAÇÃO (LIGHTING) ---")
     add("Ambient: " .. tostring(Lighting.Ambient))
     add("OutdoorAmbient: " .. tostring(Lighting.OutdoorAmbient))
@@ -91,75 +93,67 @@ local function analyzeGame()
     return table.concat(info, "\n")
 end
 
+--======= LÓGICA DE NOTIFICAÇÃO E ATIVAÇÃO =======--
 
---======= CRIAÇÃO DA INTERFACE (GUI) =======--
-local function createAnalyzerPanel()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "GameAnalyzerGUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    -- **[CORREÇÃO PRINCIPAL] Adiciona a GUI à tela do jogador.**
-    screenGui.Parent = playerGui
+local function showNotification(message)
+    -- Cria uma ScreenGui temporária para a notificação
+    local notificationGui = Instance.new("ScreenGui")
+    notificationGui.Name = "AnalyzerNotification"
+    notificationGui.ResetOnSpawn = false
+    notificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    notificationGui.Parent = playerGui
 
-    local mainPanel = Instance.new("Frame"); mainPanel.Size = UDim2.new(0, 450, 0, 500); mainPanel.Position = UDim2.new(0.5, 0, 0.5, 0); mainPanel.AnchorPoint = Vector2.new(0.5, 0.5); mainPanel.BackgroundColor3 = Color3.fromRGB(30, 32, 40); mainPanel.Parent = screenGui;
-    Instance.new("UICorner", mainPanel).CornerRadius = UDim.new(0, 8);
-    Instance.new("UIStroke", mainPanel).Color = Color3.fromRGB(100, 100, 120);
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 300, 0, 50)
+    label.Position = UDim2.new(0.5, 0, 0, -100) -- Começa fora da tela
+    label.AnchorPoint = Vector2.new(0.5, 0)
+    label.BackgroundColor3 = Color3.fromRGB(30, 32, 40)
+    label.Font = Enum.Font.SourceSansBold
+    label.Text = message
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 16
+    label.Parent = notificationGui
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", label).Color = Color3.fromRGB(80, 180, 80)
 
-    local header = Instance.new("Frame"); header.Name = "Header"; header.Size = UDim2.new(1, 0, 0, 35); header.BackgroundColor3 = Color3.fromRGB(40, 42, 50); header.Parent = mainPanel;
-    local title = Instance.new("TextLabel"); title.Size = UDim2.new(1, 0, 1, 0); title.Text = "Analisador de Jogo"; title.Font = Enum.Font.SourceSansBold; title.TextSize = 16; title.TextColor3 = Color3.fromRGB(220, 220, 220); title.BackgroundTransparency = 1; title.Parent = header;
+    -- Animação
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+    local tweenIn = game:GetService("TweenService"):Create(label, tweenInfo, {Position = UDim2.new(0.5, 0, 0, 20)})
+    local tweenOut = game:GetService("TweenService"):Create(label, tweenInfo, {Position = UDim2.new(0.5, 0, 0, -100)})
 
-    local resultFrame = Instance.new("ScrollingFrame"); resultFrame.Size = UDim2.new(1, -20, 1, -90); resultFrame.Position = UDim2.new(0.5, 0, 0, 45); resultFrame.AnchorPoint = Vector2.new(0.5, 0); resultFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 28); resultFrame.BorderSizePixel = 0; resultFrame.ScrollBarThickness = 6; resultFrame.Parent = mainPanel;
-    Instance.new("UICorner", resultFrame).CornerRadius = UDim.new(0, 6);
-    
-    local resultLabel = Instance.new("TextLabel"); resultLabel.Size = UDim2.new(1, -10, 0, 0); resultLabel.AutomaticSize = Enum.AutomaticSize.Y; resultLabel.Text = "Clique em 'Analisar' para começar..."; resultLabel.Font = Enum.Font.Code; resultLabel.TextSize = 14; resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200); resultLabel.BackgroundTransparency = 1; resultLabel.TextXAlignment = Enum.TextXAlignment.Left; resultLabel.TextYAlignment = Enum.TextYAlignment.Top; resultLabel.Parent = resultFrame;
-    Instance.new("UIPadding", resultLabel).Padding = UDim.new(0, 5);
+    tweenIn:Play()
+    task.wait(3) -- A notificação fica visível por 3 segundos
+    tweenOut:Play()
 
-    local buttonFrame = Instance.new("Frame"); buttonFrame.Size = UDim2.new(1, -20, 0, 35); buttonFrame.Position = UDim2.new(0.5, 0, 1, -10); buttonFrame.AnchorPoint = Vector2.new(0.5, 1); buttonFrame.BackgroundTransparency = 1; buttonFrame.Parent = mainPanel;
-    local buttonLayout = Instance.new("UIListLayout"); buttonLayout.FillDirection = Enum.FillDirection.Horizontal; buttonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; buttonLayout.VerticalAlignment = Enum.VerticalAlignment.Center; buttonLayout.Padding = UDim.new(0, 10); buttonLayout.Parent = buttonFrame;
-    
-    local analyzeButton = Instance.new("TextButton"); analyzeButton.Name = "AnalyzeButton"; analyzeButton.Size = UDim2.new(0.5, -5, 1, 0); analyzeButton.Text = "Analisar Jogo"; analyzeButton.Font = Enum.Font.SourceSansBold; analyzeButton.TextSize = 14; analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200); analyzeButton.TextColor3 = Color3.fromRGB(255, 255, 255); analyzeButton.Parent = buttonFrame; Instance.new("UICorner", analyzeButton).CornerRadius = UDim.new(0, 6);
-    local copyButton = Instance.new("TextButton"); copyButton.Name = "CopyButton"; copyButton.Size = UDim2.new(0.5, -5, 1, 0); copyButton.Text = "Copiar"; copyButton.Font = Enum.Font.SourceSansBold; copyButton.TextSize = 14; copyButton.TextColor3 = Color3.fromRGB(255, 255, 255); copyButton.Parent = buttonFrame; Instance.new("UICorner", copyButton).CornerRadius = UDim.new(0, 6);
-    
-    -- **[MELHORIA] Começa desativado**
-    copyButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80);
-    copyButton.AutoButtonColor = false
-    local analysisDone = false
-
-    -- Funcionalidades
-    analyzeButton.MouseButton1Click:Connect(function()
-        analyzeButton.Text = "Analisando..."
-        resultLabel.Text = "Analisando, por favor aguarde..."
-        task.wait(0.2) -- Dá tempo para a UI atualizar
-        
-        local analysisResult = analyzeGame()
-        resultLabel.Text = analysisResult
-        resultFrame.CanvasPosition = Vector2.new(0, 0)
-        
-        -- **[MELHORIA] Ativa o botão de copiar**
-        analysisDone = true
-        copyButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-        copyButton.AutoButtonColor = true
-        analyzeButton.Text = "Analisar Novamente"
-    end)
-
-    copyButton.MouseButton1Click:Connect(function()
-        if not analysisDone then return end -- Não faz nada se a análise não foi feita
-
-        if setclipboard then
-            setclipboard(resultLabel.Text)
-            copyButton.Text = "Copiado!"
-            task.wait(2)
-            copyButton.Text = "Copiar"
-        else
-            copyButton.Text = "Erro ao copiar!"
-            task.wait(2)
-            copyButton.Text = "Copiar"
-        end
-    end)
-
-    local function makeDraggable(trigger, target) local dragging, dragStart, startPos; trigger.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, dragStart, startPos = true, input.Position, target.Position; local conn; conn = input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end end) end end); UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end) end
-    makeDraggable(header, mainPanel)
+    -- Limpeza
+    tweenOut.Completed:Wait()
+    notificationGui:Destroy()
 end
 
--- Iniciar
-createAnalyzerPanel()
+-- Escuta por novas mensagens no chat
+localPlayer.Chatted:Connect(function(message, recipient)
+    -- Verifica se a mensagem é o comando (convertido para minúsculas)
+    if message:lower() == TRIGGER_COMMAND then
+        
+        -- Tenta apagar a mensagem do chat (requer certas permissões do executor)
+        pcall(function()
+            local chatService = require(game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("ChatServiceRunner"))
+            local speaker = chatService:GetSpeaker(localPlayer.Name)
+            speaker:SayMessage("", "All", true) -- Envia uma mensagem vazia para "sobrescrever" a anterior
+        end)
+        
+        -- Executa a análise
+        local analysisResult = analyzeGame()
+        
+        -- Copia para a área de transferência
+        if setclipboard then
+            setclipboard(analysisResult)
+            showNotification("Análise do Jogo Concluída e Copiada!")
+        else
+            showNotification("ERRO: 'setclipboard' não é suportado pelo seu executor.")
+        end
+    end
+end)
+
+-- Mensagem de confirmação no console do executor
+print("Analisador de Jogo por Chat ativado. Digite '" .. TRIGGER_COMMAND .. "' no chat para usar.")
