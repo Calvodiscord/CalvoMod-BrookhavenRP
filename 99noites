@@ -3,148 +3,105 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService = game:GetService("UserInputService")
 
 local localPlayer = Players.LocalPlayer
 local playerGui = localPlayer:WaitForChild("PlayerGui")
 
--- Palavra-chave para ativar a análise
+-- Palavra-chave esperada (opcional, qualquer texto ativa a análise)
 local TRIGGER_COMMAND = "analisar"
 
 --======= FUNÇÃO DE ANÁLISE "INTELIGENTE" =======--
 
 local function analyzeGame()
     local info = {}
-
-    local function add(text)
-        table.insert(info, text)
-    end
+    local function add(text) table.insert(info, text) end
 
     add("--- [ ANÁLISE DO JOGO INICIADA ] ---")
     add("Data da Análise (UTC): " .. os.date("!*t").day .. "/" .. os.date("!*t").month .. "/" .. os.date("!*t").year)
     add("")
 
-    -- 1. Informações Gerais
     add("--- 1. INFORMAÇÕES GERAIS ---")
     local success, result = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
-    if success and result then
-        add("Nome do Jogo: " .. result.Name)
-    end
-    add("Place ID: " .. tostring(game.PlaceId))
-    add("Game ID (Universe ID): " .. tostring(game.GameId))
-    add("")
+    if success and result then add("Nome do Jogo: " .. result.Name) end
+    add("Place ID: " .. tostring(game.PlaceId)); add("Game ID (Universe ID): " .. tostring(game.GameId)); add("")
 
-    -- 2. Workspace
     add("--- 2. ESTRUTURA DO WORKSPACE (Pastas Principais) ---")
-    for _, child in ipairs(workspace:GetChildren()) do
-        if not child:IsA("Terrain") and not child:IsA("Camera") and #child:GetChildren() > 0 then
-            add("- " .. child.Name .. " (" .. child.ClassName .. ")")
-        end
-    end
+    for _, child in ipairs(workspace:GetChildren()) do if not child:IsA("Terrain") and not child:IsA("Camera") and #child:GetChildren() > 0 then add("- " .. child.Name .. " (" .. child.ClassName .. ")") end end
     add("")
 
-    -- 3. Personagem
     add("--- 3. PERSONAGEM DO JOGADOR ("..localPlayer.Name..") ---")
     local character = localPlayer.Character
-    if character then
-        for _, child in ipairs(character:GetChildren()) do
-            add("- " .. child.Name .. " (" .. child.ClassName .. ")")
-        end
-    else
-        add("Personagem não encontrado.")
-    end
+    if character then for _, child in ipairs(character:GetChildren()) do add("- " .. child.Name .. " (" .. child.ClassName .. ")") end else add("Personagem não encontrado.") end
     add("")
     
-    -- 4. Mochila
     add("--- 4. ITENS NA MOCHILA ---")
     local backpack = localPlayer:FindFirstChild("Backpack")
-    if backpack then
-        local items = backpack:GetChildren()
-        if #items > 0 then
-            for _, item in ipairs(items) do
-                add("- " .. item.Name .. " (" .. item.ClassName .. ")")
-            end
-        else
-            add("Nenhum item na mochila.")
-        end
-    else
-        add("Mochila não encontrada.")
-    end
+    if backpack then local items = backpack:GetChildren(); if #items > 0 then for _, item in ipairs(items) do add("- " .. item.Name .. " (" .. item.ClassName .. ")") end else add("Nenhum item na mochila.") end else add("Mochila não encontrada.") end
     add("")
 
-    -- 5. ReplicatedStorage
     add("--- 5. REPLICATEDSTORAGE ---")
-    for _, child in ipairs(ReplicatedStorage:GetChildren()) do
-        add("- " .. child.Name .. " (" .. child.ClassName .. ")")
-    end
+    for _, child in ipairs(ReplicatedStorage:GetChildren()) do add("- " .. child.Name .. " (" .. child.ClassName .. ")") end
     add("")
 
-    -- 6. Iluminação
     add("--- 6. CONFIGURAÇÕES DE ILUMINAÇÃO (LIGHTING) ---")
-    add("Ambient: " .. tostring(Lighting.Ambient))
-    add("OutdoorAmbient: " .. tostring(Lighting.OutdoorAmbient))
-    add("Brightness: " .. tostring(Lighting.Brightness))
-    add("FogEnd: " .. tostring(Lighting.FogEnd))
-    add("FogStart: " .. tostring(Lighting.FogStart))
-    add("FogColor: " .. tostring(Lighting.FogColor))
-    add("")
+    add("Ambient: " .. tostring(Lighting.Ambient)); add("OutdoorAmbient: " .. tostring(Lighting.OutdoorAmbient)); add("Brightness: " .. tostring(Lighting.Brightness)); add("FogEnd: " .. tostring(Lighting.FogEnd)); add("FogStart: " .. tostring(Lighting.FogStart)); add("FogColor: " .. tostring(Lighting.FogColor)); add("")
     
     add("--- [ ANÁLISE CONCLUÍDA ] ---")
-
     return table.concat(info, "\n")
 end
 
 --======= CRIAÇÃO DA INTERFACE (GUI) =======--
 local function createAnalyzerPanel()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "GameAnalyzerGUI"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.Parent = playerGui
+    local screenGui = Instance.new("ScreenGui"); screenGui.Name = "GameAnalyzerGUI"; screenGui.ResetOnSpawn = false; screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; screenGui.Parent = playerGui;
 
-    local mainPanel = Instance.new("Frame"); mainPanel.Size = UDim2.new(0, 450, 0, 400); mainPanel.Position = UDim2.new(0.5, 0, 0.5, 0); mainPanel.AnchorPoint = Vector2.new(0.5, 0.5); mainPanel.BackgroundColor3 = Color3.fromRGB(30, 32, 40); mainPanel.Parent = screenGui;
+    local mainPanel = Instance.new("Frame"); mainPanel.Size = UDim2.new(0, 400, 0, 150); mainPanel.Position = UDim2.new(0.5, 0, 0.5, 0); mainPanel.AnchorPoint = Vector2.new(0.5, 0.5); mainPanel.BackgroundColor3 = Color3.fromRGB(30, 32, 40); mainPanel.Parent = screenGui;
     Instance.new("UICorner", mainPanel).CornerRadius = UDim.new(0, 8);
     Instance.new("UIStroke", mainPanel).Color = Color3.fromRGB(100, 100, 120);
 
     local header = Instance.new("Frame"); header.Name = "Header"; header.Size = UDim2.new(1, 0, 0, 35); header.BackgroundColor3 = Color3.fromRGB(40, 42, 50); header.Parent = mainPanel;
     local title = Instance.new("TextLabel"); title.Size = UDim2.new(1, 0, 1, 0); title.Text = "Analisador de Jogo"; title.Font = Enum.Font.SourceSansBold; title.TextSize = 16; title.TextColor3 = Color3.fromRGB(220, 220, 220); title.BackgroundTransparency = 1; title.Parent = header;
 
-    local resultFrame = Instance.new("ScrollingFrame"); resultFrame.Size = UDim2.new(1, -20, 1, -80); resultFrame.Position = UDim2.new(0.5, 0, 0, 40); resultFrame.AnchorPoint = Vector2.new(0.5, 0); resultFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 28); resultFrame.BorderSizePixel = 0; resultFrame.ScrollBarThickness = 6; resultFrame.Parent = mainPanel;
-    Instance.new("UICorner", resultFrame).CornerRadius = UDim.new(0, 6);
+    local contentFrame = Instance.new("Frame"); contentFrame.Size = UDim2.new(1, -20, 1, -55); contentFrame.Position = UDim2.new(0.5, 0, 0, 45); contentFrame.AnchorPoint = Vector2.new(0.5, 0); contentFrame.BackgroundTransparency = 1; contentFrame.Parent = mainPanel;
     
-    local resultLabel = Instance.new("TextLabel"); resultLabel.Size = UDim2.new(1, -10, 0, 0); resultLabel.AutomaticSize = Enum.AutomaticSize.Y; resultLabel.Text = "Digite '"..TRIGGER_COMMAND.."' na caixa abaixo e pressione Enter para iniciar."; resultLabel.Font = Enum.Font.Code; resultLabel.TextSize = 14; resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200); resultLabel.BackgroundTransparency = 1; resultLabel.TextXAlignment = Enum.TextXAlignment.Left; resultLabel.TextYAlignment = Enum.TextYAlignment.Top; resultLabel.Parent = resultFrame;
-    Instance.new("UIPadding", resultLabel).Padding = UDim.new(0, 5);
-
-    local commandInput = Instance.new("TextBox"); commandInput.Size = UDim2.new(1, -20, 0, 30); commandInput.Position = UDim2.new(0.5, 0, 1, -10); commandInput.AnchorPoint = Vector2.new(0.5, 1); commandInput.BackgroundColor3 = Color3.fromRGB(45, 45, 55); commandInput.Font = Enum.Font.SourceSans; commandInput.TextSize = 14; commandInput.TextColor3 = Color3.fromRGB(220, 220, 220); commandInput.PlaceholderText = "Digite '"..TRIGGER_COMMAND.."' e pressione Enter"; commandInput.ClearTextOnFocus = false; commandInput.Parent = mainPanel;
+    local commandInput = Instance.new("TextBox"); commandInput.Size = UDim2.new(1, 0, 0, 40); commandInput.Position = UDim2.new(0.5, 0, 0.5, 0); commandInput.AnchorPoint = Vector2.new(0.5, 0.5); commandInput.Font = Enum.Font.SourceSans; commandInput.TextSize = 14; commandInput.PlaceholderText = "Digite 'analisar' aqui..."; commandInput.BackgroundColor3 = Color3.fromRGB(20, 22, 28); commandInput.TextColor3 = Color3.fromRGB(255, 255, 255); commandInput.Parent = contentFrame;
     Instance.new("UICorner", commandInput).CornerRadius = UDim.new(0, 6);
 
-    -- Funcionalidades
-    commandInput.FocusLost:Connect(function(enterPressed)
-        if enterPressed and commandInput.Text:lower() == TRIGGER_COMMAND then
-            -- Feedback inicial
-            resultLabel.Text = "Analisando, por favor aguarde..."
-            resultFrame.CanvasPosition = Vector2.new(0, 0)
-            task.wait(0.2)
+    local analyzeButton = Instance.new("TextButton"); analyzeButton.Name = "AnalyzeButton"; analyzeButton.Size = UDim2.new(1, 0, 0, 35); analyzeButton.Position = UDim2.new(0.5, 0, 1, 0); analyzeButton.AnchorPoint = Vector2.new(0.5, 1); analyzeButton.Text = "Analisar"; analyzeButton.Font = Enum.Font.SourceSansBold; analyzeButton.TextSize = 14; analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200); analyzeButton.TextColor3 = Color3.fromRGB(255, 255, 255); analyzeButton.Parent = contentFrame;
+    Instance.new("UICorner", analyzeButton).CornerRadius = UDim.new(0, 6);
+    
+    -- Funcionalidades do Painel
+    analyzeButton.MouseButton1Click:Connect(function()
+        if commandInput.Text:lower() == TRIGGER_COMMAND then
+            analyzeButton.Text = "Analisando..."
+            task.wait(0.2) 
             
-            -- Análise e cópia
             local analysisResult = analyzeGame()
-            local finalMessage = analysisResult
             
             if setclipboard then
                 setclipboard(analysisResult)
-                finalMessage = analysisResult .. "\n\n[Resultado copiado para a área de transferência!]"
+                analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+                analyzeButton.Text = "Copiado!"
+                task.wait(2)
+                analyzeButton.Text = "Analisar"
+                analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200)
             else
-                finalMessage = analysisResult .. "\n\n[ERRO: 'setclipboard' não suportado. Copie manualmente.]"
+                analyzeButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+                analyzeButton.Text = "Erro ao copiar!"
+                task.wait(2)
+                analyzeButton.Text = "Analisar"
+                analyzeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 200)
             end
-            
-            -- Exibir resultado final e limpar
-            resultLabel.Text = finalMessage
+        else
+            commandInput.Text = "Digite 'analisar'"
+            task.wait(1.5)
             commandInput.Text = ""
         end
     end)
 
-    local function makeDraggable(trigger, target) local dragging, dragStart, startPos; trigger.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, dragStart, startPos = true, input.Position, target.Position; local conn; conn = input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end end) end end); game:GetService("UserInputService").InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end) end
+    local function makeDraggable(trigger, target) local dragging, dragStart, startPos; trigger.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging, dragStart, startPos = true, input.Position, target.Position; local conn; conn = input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false; conn:Disconnect() end end) end end); UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end) end
     makeDraggable(header, mainPanel)
 end
 
 -- Iniciar
-createAnalyzerPanel()
+createAnalyzerPanel()```
