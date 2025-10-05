@@ -1,0 +1,471 @@
+--[[
+    Script: Brookhaven-Mod
+    Versão: 3.0 (Melhorado)
+    Autor: @bielcalvokkj (Base), ChatGPT (Melhorias e UI)
+
+    Funcionalidades:
+    - Movimento: Fly, Speed, Noclip, Pulo Infinito.
+    - Utilidades: Click Teleport, Andar sobre a Água.
+    - Interface com design moderno, botões de Fechar e Minimizar, e animações.
+    - Código refatorado para maior robustez e performance.
+]]
+
+--==================================================================================--
+--||                                   SERVIÇOS                                   ||--
+--==================================================================================--
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local localPlayer = Players.LocalPlayer
+local mouse = localPlayer:GetMouse()
+local Workspace = game:GetService("Workspace")
+
+--==================================================================================--
+--||                                   CONFIGURAÇÕES                                ||--
+--==================================================================================--
+local modStates = {
+    isFlying = false,
+    isNoclipping = false,
+    isSpeedEnabled = false,
+    isClickTeleportEnabled = false,
+    isWalkOnWaterEnabled = false,
+    isInfiniteJumpEnabled = false
+}
+local modSettings = {
+    originalWalkSpeed = 16,
+    originalJumpPower = 50,
+    speedValue = 80,
+    flySpeed = 60,
+    waterLevelY = -9.5, -- Nível da água no Brookhaven
+    gravity = Workspace.Gravity -- Guarda a gravidade original
+}
+local uiData = { isMinimized = false, isDragging = false, dragStartPos = Vector2.zero }
+
+--==================================================================================--
+--||                           FUNÇÕES DAS MODIFICAÇÕES                           ||--
+--==================================================================================--
+
+local currentFlyConnection = nil
+local currentWaterPlatform = nil
+
+-- Função para Fly
+local function toggleFly(enabled)
+    modStates.isFlying = enabled
+    local char = localPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+
+    if not humanoid or not hrp then return end
+
+    if enabled then
+        humanoid.PlatformStand = true -- Desativa gravidade e colisões básicas
+        humanoid.WalkSpeed = 0
+        humanoid.JumpPower = 0
+        Workspace.Gravity = 0 -- Remove a gravidade do mundo para voo mais suave
+
+        currentFlyConnection = RunService.RenderStepped:Connect(function()
+            local flyDir = Vector3.new(0, 0, 0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.E) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then flyDir = flyDir + Vector3.new(0, 1, 0) end -- Voar para cima
+            if UserInputService:IsKeyDown(Enum.KeyCode.Q) then flyDir = flyDir - Vector3.new(0, 1, 0) end -- Voar para baixo
+
+            if flyDir.Magnitude > 0 then
+                hrp.CFrame = hrp.CFrame + flyDir.Unit * modSettings.flySpeed * RunService.RenderStepped:Wait()
+            end
+        end)
+    else
+        if currentFlyConnection then
+            currentFlyConnection:Disconnect()
+            currentFlyConnection = nil
+        end
+        humanoid.PlatformStand = false
+        humanoid.WalkSpeed = modSettings.originalWalkSpeed
+        humanoid.JumpPower = modSettings.originalJumpPower
+        Workspace.Gravity = modSettings.gravity -- Restaura a gravidade original
+    end
+end
+
+-- Função para Noclip
+local function toggleNoclip(enabled)
+    modStates.isNoclipping = enabled
+    local char = localPlayer.Character
+    if not char then return end
+
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            -- Tenta setar CanCollide, mas não força se for uma parte essencial ou script-protegida
+            pcall(function() part.CanCollide = not enabled end)
+        end
+    end
+end
+
+-- Função para Speed
+local function toggleSpeed(enabled)
+    modStates.isSpeedEnabled = enabled
+    local char = localPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = enabled and modSettings.speedValue or modSettings.originalWalkSpeed
+    end
+end
+
+-- Função para Pulo Infinito
+local currentJumpConnection = nil
+local function toggleInfiniteJump(enabled)
+    modStates.isInfiniteJumpEnabled = enabled
+    if enabled then
+        currentJumpConnection = UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+            if input.KeyCode == Enum.KeyCode.Space and not gameProcessedEvent and modStates.isInfiniteJumpEnabled then
+                local char = localPlayer.Character
+                if char then
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.Jump = true
+                    end
+                end
+            end
+        end)
+    else
+        if currentJumpConnection then
+            currentJumpConnection:Disconnect()
+            currentJumpConnection = nil
+        end
+    end
+end
+
+-- Função para Click Teleport
+local function toggleClickTeleport(enabled)
+    modStates.isClickTeleportEnabled = enabled
+end
+
+-- Função para Andar na Água
+local function toggleWalkOnWater(enabled)
+    modStates.isWalkOnWaterEnabled = enabled
+    if enabled then
+        currentWaterPlatform = Instance.new("Part")
+        currentWaterPlatform.Name = "WaterWalkPlatform"
+        currentWaterPlatform.Anchored = true
+        currentWaterPlatform.CanCollide = true
+        currentWaterPlatform.Transparency = 1 -- Invisível
+        currentWaterPlatform.Size = Vector3.new(10, 1, 10)
+        currentWaterPlatform.Parent = Workspace
+
+        RunService.RenderStepped:Connect(function()
+            if modStates.isWalkOnWaterEnabled and currentWaterPlatform and localPlayer.Character then
+                local hrp = localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp and hrp.Position.Y <= modSettings.waterLevelY + 0.5 then -- +0.5 para "entrar" um pouco na água
+                    currentWaterPlatform.CFrame = CFrame.new(hrp.Position.X, modSettings.waterLevelY, hrp.Position.Z)
+                else
+                    currentWaterPlatform.CFrame = CFrame.new(0, -1000, 0) -- Move para longe se não estiver na água
+                end
+            end
+        end)
+    else
+        if currentWaterPlatform then
+            currentWaterPlatform:Destroy()
+            currentWaterPlatform = nil
+        end
+    end
+end
+
+-- Mapeamento das funções para os nomes das chaves de estado
+local modFunctions = {
+    isFlying = toggleFly,
+    isNoclipping = toggleNoclip,
+    isSpeedEnabled = toggleSpeed,
+    isClickTeleportEnabled = toggleClickTeleport,
+    isInfiniteJumpEnabled = toggleInfiniteJump,
+    isWalkOnWaterEnabled = toggleWalkOnWater
+}
+
+--==================================================================================--
+--||                           FUNÇÃO PRINCIPAL DA UI                             ||--
+--==================================================================================--
+local function BuildUI()
+    if localPlayer.PlayerGui:FindFirstChild("BrookhavenFunModGui") then
+        localPlayer.PlayerGui.BrookhavenFunModGui:Destroy()
+    end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "BrookhavenFunModGui"
+    gui.Parent = localPlayer:WaitForChild("PlayerGui")
+    gui.ResetOnSpawn = false
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Parent = gui
+    mainFrame.Size = UDim2.new(0, 250, 0, 380) -- Tamanho um pouco maior
+    mainFrame.Position = UDim2.new(0, 10, 0.5, -190) -- Centraliza melhor
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40) -- Darker base
+    mainFrame.Active = true
+    mainFrame.ClipsDescendants = true
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12) -- Mais arredondado
+    corner.Parent = mainFrame
+
+    -- Sombra (opcional, requer ImageLabel com imagem de sombra ou outro Frame)
+    -- Para simplificar, vou usar um pequeno "borda" escura como sombra
+    local shadow = Instance.new("Frame")
+    shadow.Parent = mainFrame
+    shadow.Size = UDim2.new(1, 0, 1, 0)
+    shadow.BackgroundTransparency = 0.8
+    shadow.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    shadow.ZIndex = -1 -- Para ficar atrás
+    shadow.Position = UDim2.new(0, 5, 0, 5) -- Deslocamento para simular sombra
+    Instance.new("UICorner", shadow).CornerRadius = UDim.new(0, 12)
+
+
+    -- Barra Superior com Título e Botões
+    local topBar = Instance.new("Frame")
+    topBar.Name = "TopBar"
+    topBar.Parent = mainFrame
+    topBar.Size = UDim2.new(1, 0, 0, 40) -- Mais alto
+    topBar.BackgroundColor3 = Color3.fromRGB(40, 40, 55) -- Cor mais destacada
+    topBar.ZIndex = 2 -- Garante que fique acima de outros elementos
+
+    local topBarCorner = Instance.new("UICorner") -- Apenas a parte superior arredondada
+    topBarCorner.CornerRadius = UDim.new(0, 12)
+    topBarCorner.Parent = topBar
+
+    local title = Instance.new("TextLabel")
+    title.Parent = topBar
+    title.Size = UDim2.new(1, -80, 1, 0) -- Espaço para os botões
+    title.Position = UDim2.new(0, 15, 0, 0) -- Mais para a direita
+    title.Text = "Brookhaven Fun Mod"
+    title.Font = Enum.Font.GothamBold -- Pode tentar "Exo" ou "SourceSansPro"
+    title.TextSize = 18 -- Maior
+    title.TextColor3 = Color3.fromRGB(220, 220, 220)
+    title.BackgroundTransparency = 1
+    title.TextXAlignment = Enum.TextXAlignment.Left
+
+    local function createTopButton(text, xPosition, onClick)
+        local button = Instance.new("TextButton")
+        button.Parent = topBar
+        button.Size = UDim2.new(0, 30, 1, 0)
+        button.Position = UDim2.new(1, xPosition, 0, 0)
+        button.Text = text
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 18 -- Maior
+        button.TextColor3 = Color3.fromRGB(180, 180, 180) -- Cinza mais suave
+        button.BackgroundTransparency = 1
+        button.ZIndex = 3
+        button.MouseButton1Click:Connect(onClick)
+
+        local hoverTweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        button.MouseEnter:Connect(function()
+            TweenService:Create(button, hoverTweenInfo, {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        end)
+        button.MouseLeave:Connect(function()
+            TweenService:Create(button, hoverTweenInfo, {TextColor3 = Color3.fromRGB(180, 180, 180)}):Play()
+        end)
+        return button
+    end
+
+    -- Botão de Fechar
+    createTopButton("X", -35, function() gui:Destroy() end)
+    
+    -- Botão de Minimizar
+    local minimizeBtn = createTopButton("—", -70, function()
+        uiData.isMinimized = not uiData.isMinimized
+        local goalSize = uiData.isMinimized and UDim2.new(0, 250, 0, 40) or UDim2.new(0, 250, 0, 380)
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+        TweenService:Create(mainFrame, tweenInfo, {Size = goalSize}):Play()
+    end)
+    
+    -- Painel de Conteúdo para os botões de função
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Parent = mainFrame
+    contentFrame.Size = UDim2.new(1, 0, 1, -40)
+    contentFrame.Position = UDim2.new(0, 0, 0, 40)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.ZIndex = 1
+
+    local gridLayout = Instance.new("UIGridLayout")
+    gridLayout.Parent = contentFrame
+    gridLayout.CellSize = UDim2.new(1, -20, 0, 45) -- Largura total - padding, altura fixa
+    gridLayout.CellPadding = UDim2.new(0, 5, 0, 5) -- Espaçamento entre as células
+    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    gridLayout.FillDirection = Enum.FillDirection.Horizontal
+    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local padding = Instance.new("UIPadding")
+    padding.Parent = contentFrame
+    padding.PaddingTop = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.PaddingRight = UDim.new(0, 10)
+    
+    -- Função para criar botões toggle elegantes
+    local function createToggleButton(text, stateKey)
+        local button = Instance.new("TextButton")
+        button.Name = text .. "Button"
+        button.Parent = contentFrame
+        button.Size = UDim2.new(1, 0, 1, 0) -- O gridLayout vai gerenciar o tamanho real
+        button.BackgroundColor3 = Color3.fromRGB(60, 60, 75) -- Cinza escuro para OFF
+        button.Font = Enum.Font.GothamSemibold
+        button.TextSize = 15
+        button.TextColor3 = Color3.fromRGB(200, 200, 200)
+        button.TextWrapped = true
+        button.TextXAlignment = Enum.TextXAlignment.Center
+        button.TextYAlignment = Enum.TextYAlignment.Center
+        button.ZIndex = 2
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = button
+
+        local function updateButtonState()
+            local isOn = modStates[stateKey]
+            local targetColor = isOn and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 75) -- Azul para ON
+            local targetTextColor = isOn and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+            button.Text = text .. (isOn and "\n[ATIVO]" or "\n[DESATIVADO]")
+
+            TweenService:Create(button, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {BackgroundColor3 = targetColor, TextColor3 = targetTextColor}):Play()
+        end
+        
+        button.MouseButton1Click:Connect(function()
+            local newState = not modStates[stateKey]
+            modStates[stateKey] = newState
+            updateButtonState()
+            -- Chamar a função de mod correspondente
+            if modFunctions[stateKey] then
+                modFunctions[stateKey](newState)
+            end
+        end)
+
+        -- Efeito de Hover
+        local hoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        button.MouseEnter:Connect(function()
+            if not modStates[stateKey] then -- Apenas se não estiver ativo
+                TweenService:Create(button, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(80, 80, 95)}):Play()
+            end
+        end)
+        button.MouseLeave:Connect(function()
+            if not modStates[stateKey] then
+                TweenService:Create(button, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(60, 60, 75)}):Play()
+            end
+        end)
+
+        updateButtonState() -- Atualiza o estado inicial do botão
+    end
+    
+    -- Criar botões
+    createToggleButton("Voar", "isFlying")
+    createToggleButton("Correr Rápido", "isSpeedEnabled")
+    createToggleButton("Atravessar Paredes", "isNoclipping")
+    createToggleButton("Pulo Infinito", "isInfiniteJumpEnabled")
+    createToggleButton("Teleporte", "isClickTeleportEnabled")
+    createToggleButton("Andar na Água", "isWalkOnWaterEnabled")
+
+    -- Dragging do painel
+    topBar.MouseButton1Down:Connect(function(x, y)
+        uiData.isDragging = true
+        uiData.dragStartPos = Vector2.new(x, y) - mainFrame.Position.AbsoluteOffset
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and uiData.isDragging then
+            mainFrame.Position = UDim2.new(0, input.Position.X - uiData.dragStartPos.X, 0, input.Position.Y - uiData.dragStartPos.Y)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            uiData.isDragging = false
+        end
+    end)
+end
+
+--==================================================================================--
+--||                             INICIALIZAÇÃO E EVENTOS                           ||--
+--==================================================================================--
+local function Initialize()
+    -- Guardar as configurações originais ao carregar o personagem
+    local function onCharacterAdded(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        modSettings.originalWalkSpeed = humanoid.WalkSpeed
+        modSettings.originalJumpPower = humanoid.JumpPower
+        modSettings.gravity = Workspace.Gravity -- Garante que a gravidade original seja guardada
+
+        -- Resetar todos os mods quando o personagem é adicionado/resetado
+        for stateKey, func in pairs(modFunctions) do
+            if modStates[stateKey] then
+                modStates[stateKey] = false -- Desliga o estado
+                func(false) -- Chama a função para desativar corretamente
+            end
+        end
+        -- Reconstruir a UI para atualizar os estados dos botões
+        if localPlayer.PlayerGui:FindFirstChild("BrookhavenFunModGui") then
+            BuildUI()
+        end
+    end
+    
+    if localPlayer.Character then
+        onCharacterAdded(localPlayer.Character)
+    end
+    localPlayer.CharacterAdded:Connect(onCharacterAdded)
+
+    -- Evento para Click Teleport
+    mouse.Button1Down:Connect(function()
+        if modStates.isClickTeleportEnabled and mouse.Target and mouse.TargetSurface ~= Enum.SurfaceType.Top then -- Evita teleportar para cima de si mesmo
+            local char = localPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local targetPosition = mouse.Hit.p
+                -- Teleporta um pouco acima para evitar ficar preso no chão
+                char.HumanoidRootPart.CFrame = CFrame.new(targetPosition.X, targetPosition.Y + 2, targetPosition.Z)
+            end
+        end
+    end)
+    
+    -- BindToRenderStep para Noclip e Speed (manter a compatibilidade, mas a lógica foi movida para as funções toggle)
+    -- Removemos a lógica de speed e noclip daqui, pois agora é gerenciada pelas funções toggle
+    -- Isso garante que as alterações só aconteçam quando o mod está ativo/desativado, não em todo RenderStep
+    RunService:BindToRenderStep("BrookhavenFunMod_NoclipSpeedChecker", Enum.RenderPriority.Character.Value + 1, function()
+        local char = localPlayer.Character
+        if not char then return end
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid:GetState() == Enum.HumanoidStateType.Dead then return end
+
+        -- Garante que a velocidade original seja restaurada se o mod for desativado por algum motivo externo
+        if not modStates.isSpeedEnabled and humanoid.WalkSpeed ~= modSettings.originalWalkSpeed then
+            humanoid.WalkSpeed = modSettings.originalWalkSpeed
+        end
+
+        -- Garante que a colisão original seja restaurada se o mod for desativado
+        if not modStates.isNoclipping then
+             for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and not part.CanCollide then
+                    pcall(function() part.CanCollide = true end)
+                end
+            end
+        end
+    end)
+
+    -- Chama BuildUI para construir a interface
+    pcall(BuildUI)
+
+    -- Limpeza ao sair do jogo
+    game:BindToClose(function()
+        -- Desativar todos os mods ativos para evitar efeitos residuais
+        for stateKey, func in pairs(modFunctions) do
+            if modStates[stateKey] then
+                func(false)
+                modStates[stateKey] = false
+            end
+        end
+        -- Destrói a GUI
+        if localPlayer.PlayerGui:FindFirstChild("BrookhavenFunModGui") then
+            localPlayer.PlayerGui.BrookhavenFunModGui:Destroy()
+        end
+    end)
+end
+
+Initialize()
