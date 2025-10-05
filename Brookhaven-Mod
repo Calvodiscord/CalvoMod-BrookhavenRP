@@ -1,13 +1,15 @@
 --[[
     Script: Brookhaven-Mod
-    Versão: 3.0 (Melhorado)
-    Autor: @bielcalvokkj (Base), ChatGPT (Melhorias e UI)
+    Versão: 4.0 (Avançado)
+    Autor: @bielcalvokkj (Base), ChatGPT (Melhorias, UI de Páginas, Teleportes Salvos, Correções)
 
     Funcionalidades:
     - Movimento: Fly, Speed, Noclip, Pulo Infinito.
     - Utilidades: Click Teleport, Andar sobre a Água.
-    - Interface com design moderno, botões de Fechar e Minimizar, e animações.
-    - Código refatorado para maior robustez e performance.
+    - Sistema de Teleportes Salvos (Salvar/Carregar/Remover com nome personalizável).
+    - Interface com design moderno e responsivo, botões de Fechar e Minimizar.
+    - UI com navegação por páginas (Main, Teleporte, etc.).
+    - Código refatorado para maior robustez, performance e correção de bugs.
 ]]
 
 --==================================================================================--
@@ -17,6 +19,9 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService") -- Para salvar teleportes
+
 local localPlayer = Players.LocalPlayer
 local mouse = localPlayer:GetMouse()
 local Workspace = game:GetService("Workspace")
@@ -37,10 +42,58 @@ local modSettings = {
     originalJumpPower = 50,
     speedValue = 80,
     flySpeed = 60,
-    waterLevelY = -9.5, -- Nível da água no Brookhaven
+    waterLevelY = -9.5, -- Nível da água no Brookhaven (pode variar ligeiramente)
     gravity = Workspace.Gravity -- Guarda a gravidade original
 }
-local uiData = { isMinimized = false, isDragging = false, dragStartPos = Vector2.zero }
+local uiData = { isMinimized = false, isDragging = false, dragStartPos = Vector2.zero, currentPage = "Main" }
+local savedTeleports = {} -- Armazena {name = "...", CFrame = CFrame.new(...)}
+
+-- DataStore para salvar teleportes (Nota: DataStore só funciona em servidores, para LocalScript
+-- precisaremos de uma solução temporária ou um RemoteEvent para o servidor salvar/carregar)
+-- Para este script de client-side, vamos usar `UserSettings().LocalSettings` se possível, ou apenas manter em memória.
+-- O ideal seria um RemoteEvent para o servidor, mas para um script cliente puro, usaremos UserSettings.
+local TELEPORT_SETTINGS_KEY = "BrookhavenMod_SavedTeleports"
+local UserSettings = UserSettings() -- Acessa as configurações locais do usuário
+
+--==================================================================================--
+--||                                FUNÇÕES DE UTENSÍLIOS                           ||--
+--==================================================================================--
+
+local function saveTeleports()
+    local serializedTeleports = {}
+    for _, tp in pairs(savedTeleports) do
+        table.insert(serializedTeleports, {
+            Name = tp.Name,
+            X = tp.CFrame.X, Y = tp.CFrame.Y, Z = tp.CFrame.Z,
+            R00 = tp.CFrame.R00, R01 = tp.CFrame.R01, R02 = tp.CFrame.R02,
+            R10 = tp.CFrame.R10, R11 = tp.CFrame.R11, R12 = tp.CFrame.R12,
+            R20 = tp.CFrame.R20, R21 = tp.CFrame.R21, R22 = tp.CFrame.R22
+        })
+    end
+    pcall(function()
+        UserSettings():SetSetting("BrookhavenMod", TELEPORT_SETTINGS_KEY, serializedTeleports)
+    end)
+end
+
+local function loadTeleports()
+    local success, loadedData = pcall(function()
+        return UserSettings():GetSetting("BrookhavenMod", TELEPORT_SETTINGS_KEY)
+    end)
+
+    if success and loadedData and type(loadedData) == "table" then
+        savedTeleports = {}
+        for _, data in pairs(loadedData) do
+            if data.Name and data.X and data.Y and data.Z then
+                local cframe = CFrame.new(data.X, data.Y, data.Z,
+                    data.R00 or 1, data.R01 or 0, data.R02 or 0,
+                    data.R10 or 0, data.R11 or 1, data.R12 or 0,
+                    data.R20 or 0, data.R21 or 0, data.R22 or 1
+                )
+                table.insert(savedTeleports, { Name = data.Name, CFrame = cframe })
+            end
+        end
+    end
+end
 
 --==================================================================================--
 --||                           FUNÇÕES DAS MODIFICAÇÕES                           ||--
@@ -48,6 +101,7 @@ local uiData = { isMinimized = false, isDragging = false, dragStartPos = Vector2
 
 local currentFlyConnection = nil
 local currentWaterPlatform = nil
+local currentNoclipParts = {}
 
 -- Função para Fly
 local function toggleFly(enabled)
@@ -64,15 +118,19 @@ local function toggleFly(enabled)
         humanoid.WalkSpeed = 0
         humanoid.JumpPower = 0
         Workspace.Gravity = 0 -- Remove a gravidade do mundo para voo mais suave
+        humanoid:ChangeState(Enum.HumanoidStateType.Flying) -- Garante que o estado de voo esteja ativo
 
         currentFlyConnection = RunService.RenderStepped:Connect(function()
             local flyDir = Vector3.new(0, 0, 0)
-            if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.S) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.LookVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.D) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.A) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.RightVector end
-            if UserInputService:IsKeyDown(Enum.KeyCode.E) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then flyDir = flyDir + Vector3.new(0, 1, 0) end -- Voar para cima
-            if UserInputService:IsKeyDown(Enum.KeyCode.Q) then flyDir = flyDir - Vector3.new(0, 1, 0) end -- Voar para baixo
+            -- Assegura que as entradas não estão sendo processadas pelo jogo (ex: chat)
+            if not UserInputService:GetFocusedTextBox() then
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then flyDir = flyDir + Workspace.CurrentCamera.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then flyDir = flyDir - Workspace.CurrentCamera.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.E) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then flyDir = flyDir + Vector3.new(0, 1, 0) end -- Voar para cima
+                if UserInputService:IsKeyDown(Enum.KeyCode.Q) then flyDir = flyDir - Vector3.new(0, 1, 0) end -- Voar para baixo
+            end
 
             if flyDir.Magnitude > 0 then
                 hrp.CFrame = hrp.CFrame + flyDir.Unit * modSettings.flySpeed * RunService.RenderStepped:Wait()
@@ -87,6 +145,7 @@ local function toggleFly(enabled)
         humanoid.WalkSpeed = modSettings.originalWalkSpeed
         humanoid.JumpPower = modSettings.originalJumpPower
         Workspace.Gravity = modSettings.gravity -- Restaura a gravidade original
+        humanoid:ChangeState(Enum.HumanoidStateType.Landed) -- Volta ao estado normal
     end
 end
 
@@ -96,11 +155,24 @@ local function toggleNoclip(enabled)
     local char = localPlayer.Character
     if not char then return end
 
+    currentNoclipParts = {} -- Limpa a lista de partes afetadas
+
     for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            -- Tenta setar CanCollide, mas não força se for uma parte essencial ou script-protegida
+        if part:IsA("BasePart") and part.CanCollide then
+            -- Apenas adiciona à lista se CanCollide foi alterado
             pcall(function() part.CanCollide = not enabled end)
+            table.insert(currentNoclipParts, part)
         end
+    end
+
+    if not enabled then
+        -- Restaura CanCollide para todas as partes que foram afetadas
+        for _, part in ipairs(currentNoclipParts) do
+            if part and part.Parent == char then -- Garante que a parte ainda existe no personagem
+                pcall(function() part.CanCollide = true end)
+            end
+        end
+        currentNoclipParts = {} -- Limpa a lista
     end
 end
 
@@ -145,6 +217,7 @@ local function toggleClickTeleport(enabled)
 end
 
 -- Função para Andar na Água
+local currentWaterWalkConnection = nil
 local function toggleWalkOnWater(enabled)
     modStates.isWalkOnWaterEnabled = enabled
     if enabled then
@@ -153,20 +226,28 @@ local function toggleWalkOnWater(enabled)
         currentWaterPlatform.Anchored = true
         currentWaterPlatform.CanCollide = true
         currentWaterPlatform.Transparency = 1 -- Invisível
-        currentWaterPlatform.Size = Vector3.new(10, 1, 10)
+        currentWaterPlatform.Size = Vector3.new(10, 1, 10) -- Tamanho razoável
         currentWaterPlatform.Parent = Workspace
 
-        RunService.RenderStepped:Connect(function()
+        currentWaterWalkConnection = RunService.RenderStepped:Connect(function()
             if modStates.isWalkOnWaterEnabled and currentWaterPlatform and localPlayer.Character then
                 local hrp = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp and hrp.Position.Y <= modSettings.waterLevelY + 0.5 then -- +0.5 para "entrar" um pouco na água
-                    currentWaterPlatform.CFrame = CFrame.new(hrp.Position.X, modSettings.waterLevelY, hrp.Position.Z)
-                else
-                    currentWaterPlatform.CFrame = CFrame.new(0, -1000, 0) -- Move para longe se não estiver na água
+                if hrp then
+                    -- Posiciona a plataforma um pouco abaixo dos pés do jogador no nível da água
+                    if hrp.Position.Y <= modSettings.waterLevelY + 0.5 then
+                        currentWaterPlatform.CFrame = CFrame.new(hrp.Position.X, modSettings.waterLevelY - 0.5, hrp.Position.Z)
+                    else
+                        -- Move a plataforma para longe quando não estiver na água
+                        currentWaterPlatform.CFrame = CFrame.new(0, -1000, 0)
+                    end
                 end
             end
         end)
     else
+        if currentWaterWalkConnection then
+            currentWaterWalkConnection:Disconnect()
+            currentWaterWalkConnection = nil
+        end
         if currentWaterPlatform then
             currentWaterPlatform:Destroy()
             currentWaterPlatform = nil
@@ -200,47 +281,47 @@ local function BuildUI()
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
     mainFrame.Parent = gui
-    mainFrame.Size = UDim2.new(0, 250, 0, 380) -- Tamanho um pouco maior
-    mainFrame.Position = UDim2.new(0, 10, 0.5, -190) -- Centraliza melhor
+    -- Ajuste para proporção 16:9 (aprox. 320x180 ou múltiplos)
+    mainFrame.Size = UDim2.new(0, 320, 0, 240) -- 4:3 para o frame, vamos usar 320x200 para o content
+    mainFrame.Position = UDim2.new(0, 10, 0.5, -120) -- Centraliza melhor (metade da altura)
     mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40) -- Darker base
     mainFrame.Active = true
     mainFrame.ClipsDescendants = true
-    
+    mainFrame.ZIndex = 10 -- Garante que esteja sempre visível
+
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 12) -- Mais arredondado
+    corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = mainFrame
 
-    -- Sombra (opcional, requer ImageLabel com imagem de sombra ou outro Frame)
-    -- Para simplificar, vou usar um pequeno "borda" escura como sombra
+    -- Sombra
     local shadow = Instance.new("Frame")
     shadow.Parent = mainFrame
     shadow.Size = UDim2.new(1, 0, 1, 0)
     shadow.BackgroundTransparency = 0.8
     shadow.BackgroundColor3 = Color3.fromRGB(0,0,0)
-    shadow.ZIndex = -1 -- Para ficar atrás
-    shadow.Position = UDim2.new(0, 5, 0, 5) -- Deslocamento para simular sombra
+    shadow.ZIndex = -1
+    shadow.Position = UDim2.new(0, 5, 0, 5)
     Instance.new("UICorner", shadow).CornerRadius = UDim.new(0, 12)
-
 
     -- Barra Superior com Título e Botões
     local topBar = Instance.new("Frame")
     topBar.Name = "TopBar"
     topBar.Parent = mainFrame
-    topBar.Size = UDim2.new(1, 0, 0, 40) -- Mais alto
-    topBar.BackgroundColor3 = Color3.fromRGB(40, 40, 55) -- Cor mais destacada
-    topBar.ZIndex = 2 -- Garante que fique acima de outros elementos
+    topBar.Size = UDim2.new(1, 0, 0, 40)
+    topBar.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    topBar.ZIndex = 2
 
-    local topBarCorner = Instance.new("UICorner") -- Apenas a parte superior arredondada
+    local topBarCorner = Instance.new("UICorner")
     topBarCorner.CornerRadius = UDim.new(0, 12)
     topBarCorner.Parent = topBar
 
     local title = Instance.new("TextLabel")
     title.Parent = topBar
-    title.Size = UDim2.new(1, -80, 1, 0) -- Espaço para os botões
-    title.Position = UDim2.new(0, 15, 0, 0) -- Mais para a direita
+    title.Size = UDim2.new(1, -80, 1, 0)
+    title.Position = UDim2.new(0, 15, 0, 0)
     title.Text = "Brookhaven Fun Mod"
-    title.Font = Enum.Font.GothamBold -- Pode tentar "Exo" ou "SourceSansPro"
-    title.TextSize = 18 -- Maior
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
     title.TextColor3 = Color3.fromRGB(220, 220, 220)
     title.BackgroundTransparency = 1
     title.TextXAlignment = Enum.TextXAlignment.Left
@@ -252,8 +333,8 @@ local function BuildUI()
         button.Position = UDim2.new(1, xPosition, 0, 0)
         button.Text = text
         button.Font = Enum.Font.GothamBold
-        button.TextSize = 18 -- Maior
-        button.TextColor3 = Color3.fromRGB(180, 180, 180) -- Cinza mais suave
+        button.TextSize = 18
+        button.TextColor3 = Color3.fromRGB(180, 180, 180)
         button.BackgroundTransparency = 1
         button.ZIndex = 3
         button.MouseButton1Click:Connect(onClick)
@@ -268,48 +349,204 @@ local function BuildUI()
         return button
     end
 
-    -- Botão de Fechar
     createTopButton("X", -35, function() gui:Destroy() end)
     
-    -- Botão de Minimizar
     local minimizeBtn = createTopButton("—", -70, function()
         uiData.isMinimized = not uiData.isMinimized
-        local goalSize = uiData.isMinimized and UDim2.new(0, 250, 0, 40) or UDim2.new(0, 250, 0, 380)
+        local goalSize = uiData.isMinimized and UDim2.new(0, 320, 0, 40) or UDim2.new(0, 320, 0, 240)
         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
         TweenService:Create(mainFrame, tweenInfo, {Size = goalSize}):Play()
     end)
     
-    -- Painel de Conteúdo para os botões de função
+    -- Painel de Conteúdo principal (onde as "páginas" serão exibidas)
     local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "ContentFrame"
     contentFrame.Parent = mainFrame
     contentFrame.Size = UDim2.new(1, 0, 1, -40)
     contentFrame.Position = UDim2.new(0, 0, 0, 40)
     contentFrame.BackgroundTransparency = 1
+    contentFrame.ClipsDescendants = true
     contentFrame.ZIndex = 1
 
-    local gridLayout = Instance.new("UIGridLayout")
-    gridLayout.Parent = contentFrame
-    gridLayout.CellSize = UDim2.new(1, -20, 0, 45) -- Largura total - padding, altura fixa
-    gridLayout.CellPadding = UDim2.new(0, 5, 0, 5) -- Espaçamento entre as células
-    gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-    gridLayout.FillDirection = Enum.FillDirection.Horizontal
-    gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    -- Frame para as páginas (Main, Teleport, etc.)
+    local pagesFrame = Instance.new("Frame")
+    pagesFrame.Name = "PagesFrame"
+    pagesFrame.Parent = contentFrame
+    pagesFrame.Size = UDim2.new(1, 0, 1, 0)
+    pagesFrame.BackgroundTransparency = 1
+
+    -- ==================================================================================
+    -- ||                                 PÁGINA PRINCIPAL (MAIN)                      ||
+    -- ==================================================================================
+    local mainPage = Instance.new("Frame")
+    mainPage.Name = "Main"
+    mainPage.Parent = pagesFrame
+    mainPage.Size = UDim2.new(1, 0, 1, 0)
+    mainPage.BackgroundTransparency = 1
+
+    local mainGrid = Instance.new("UIGridLayout")
+    mainGrid.Parent = mainPage
+    mainGrid.CellSize = UDim2.new(1, -20, 0, 55)
+    mainGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+    mainGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    mainGrid.VerticalAlignment = Enum.VerticalAlignment.Center
+    mainGrid.FillDirection = Enum.FillDirection.Horizontal
+    mainGrid.SortOrder = Enum.SortOrder.LayoutOrder
     
-    local padding = Instance.new("UIPadding")
-    padding.Parent = contentFrame
-    padding.PaddingTop = UDim.new(0, 10)
-    padding.PaddingBottom = UDim.new(0, 10)
-    padding.PaddingLeft = UDim.new(0, 10)
-    padding.PaddingRight = UDim.new(0, 10)
+    local mainPadding = Instance.new("UIPadding")
+    mainPadding.Parent = mainPage
+    mainPadding.PaddingTop = UDim.new(0, 10)
+    mainPadding.PaddingBottom = UDim.new(0, 10)
+    mainPadding.PaddingLeft = UDim.new(0, 10)
+    mainPadding.PaddingRight = UDim.new(0, 10)
+
+    -- Função para criar botões de CATEGORIA (Main Page)
+    local function createCategoryButton(text, pageName)
+        local button = Instance.new("TextButton")
+        button.Name = text .. "CategoryButton"
+        button.Parent = mainPage
+        button.Size = UDim2.new(1, 0, 1, 0)
+        button.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 18
+        button.TextColor3 = Color3.fromRGB(220, 220, 220)
+        button.TextWrapped = true
+        button.ZIndex = 2
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = button
+
+        button.Text = text
+
+        button.MouseButton1Click:Connect(function()
+            displayPage(pageName)
+        end)
+
+        local hoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        button.MouseEnter:Connect(function()
+            TweenService:Create(button, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(70, 70, 90)}):Play()
+        end)
+        button.MouseLeave:Connect(function()
+            TweenService:Create(button, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(50, 50, 65)}):Play()
+        end)
+    end
     
-    -- Função para criar botões toggle elegantes
-    local function createToggleButton(text, stateKey)
+    createCategoryButton("Movimento", "MovementPage")
+    createCategoryButton("Utilidades", "UtilityPage")
+    createCategoryButton("Teleporte", "TeleportPage")
+
+    -- ==================================================================================
+    -- ||                                 PÁGINA DE MOVIMENTO                           ||
+    -- ==================================================================================
+    local movementPage = Instance.new("Frame")
+    movementPage.Name = "MovementPage"
+    movementPage.Parent = pagesFrame
+    movementPage.Size = UDim2.new(1, 0, 1, 0)
+    movementPage.Position = UDim2.new(1, 0, 0, 0) -- Fora da tela inicialmente
+    movementPage.BackgroundTransparency = 1
+    
+    local movementGrid = Instance.new("UIGridLayout")
+    movementGrid.Parent = movementPage
+    movementGrid.CellSize = UDim2.new(1, -20, 0, 45)
+    movementGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+    movementGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    movementGrid.VerticalAlignment = Enum.VerticalAlignment.Top
+    movementGrid.FillDirection = Enum.FillDirection.Horizontal
+    movementGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local movementPadding = Instance.new("UIPadding")
+    movementPadding.Parent = movementPage
+    movementPadding.PaddingTop = UDim.new(0, 10)
+    movementPadding.PaddingBottom = UDim.new(0, 10)
+    movementPadding.PaddingLeft = UDim.new(0, 10)
+    movementPadding.PaddingRight = UDim.new(0, 10)
+
+    -- ==================================================================================
+    -- ||                                 PÁGINA DE UTILIDADES                           ||
+    -- ==================================================================================
+    local utilityPage = Instance.new("Frame")
+    utilityPage.Name = "UtilityPage"
+    utilityPage.Parent = pagesFrame
+    utilityPage.Size = UDim2.new(1, 0, 1, 0)
+    utilityPage.Position = UDim2.new(1, 0, 0, 0) -- Fora da tela inicialmente
+    utilityPage.BackgroundTransparency = 1
+
+    local utilityGrid = Instance.new("UIGridLayout")
+    utilityGrid.Parent = utilityPage
+    utilityGrid.CellSize = UDim2.new(1, -20, 0, 45)
+    utilityGrid.CellPadding = UDim2.new(0, 5, 0, 5)
+    utilityGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    utilityGrid.VerticalAlignment = Enum.VerticalAlignment.Top
+    utilityGrid.FillDirection = Enum.FillDirection.Horizontal
+    utilityGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local utilityPadding = Instance.new("UIPadding")
+    utilityPadding.Parent = utilityPage
+    utilityPadding.PaddingTop = UDim.new(0, 10)
+    utilityPadding.PaddingBottom = UDim.new(0, 10)
+    utilityPadding.PaddingLeft = UDim.new(0, 10)
+    utilityPadding.PaddingRight = UDim.new(0, 10)
+
+    -- ==================================================================================
+    -- ||                                 PÁGINA DE TELEPORTE                         ||
+    -- ==================================================================================
+    local teleportPage = Instance.new("Frame")
+    teleportPage.Name = "TeleportPage"
+    teleportPage.Parent = pagesFrame
+    teleportPage.Size = UDim2.new(1, 0, 1, 0)
+    teleportPage.Position = UDim2.new(1, 0, 0, 0) -- Fora da tela inicialmente
+    teleportPage.BackgroundTransparency = 1
+
+    local teleportListLayout = Instance.new("UIListLayout")
+    teleportListLayout.Parent = teleportPage
+    teleportListLayout.Padding = UDim.new(0, 5)
+    teleportListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    teleportListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    teleportListLayout.FillDirection = Enum.FillDirection.Vertical
+    
+    local teleportPadding = Instance.new("UIPadding")
+    teleportPadding.Parent = teleportPage
+    teleportPadding.PaddingTop = UDim.new(0, 10)
+    teleportPadding.PaddingBottom = UDim.new(0, 10)
+    teleportPadding.PaddingLeft = UDim.new(0, 10)
+    teleportPadding.PaddingRight = UDim.new(0, 10)
+
+    -- Botão Voltar para a Main
+    local function createBackButton(parentFrame)
+        local backButton = Instance.new("TextButton")
+        backButton.Parent = parentFrame
+        backButton.Size = UDim2.new(1, -20, 0, 30)
+        backButton.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+        backButton.Font = Enum.Font.GothamSemibold
+        backButton.TextSize = 14
+        backButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+        backButton.Text = "Voltar"
+        backButton.LayoutOrder = 0 -- Garante que seja o primeiro
+        Instance.new("UICorner", backButton)
+        backButton.MouseButton1Click:Connect(function()
+            displayPage("Main")
+        end)
+        local hoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        backButton.MouseEnter:Connect(function()
+            TweenService:Create(backButton, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(80, 80, 95)}):Play()
+        end)
+        backButton.MouseLeave:Connect(function()
+            TweenService:Create(backButton, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(60, 60, 75)}):Play()
+        end)
+    end
+    
+    createBackButton(movementPage)
+    createBackButton(utilityPage)
+    createBackButton(teleportPage)
+
+    -- Função para criar botões toggle elegantes (para Movement e Utility Pages)
+    local function createToggleButton(text, stateKey, parentFrame)
         local button = Instance.new("TextButton")
         button.Name = text .. "Button"
-        button.Parent = contentFrame
-        button.Size = UDim2.new(1, 0, 1, 0) -- O gridLayout vai gerenciar o tamanho real
-        button.BackgroundColor3 = Color3.fromRGB(60, 60, 75) -- Cinza escuro para OFF
+        button.Parent = parentFrame
+        button.Size = UDim2.new(1, 0, 1, 0)
+        button.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
         button.Font = Enum.Font.GothamSemibold
         button.TextSize = 15
         button.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -324,7 +561,7 @@ local function BuildUI()
 
         local function updateButtonState()
             local isOn = modStates[stateKey]
-            local targetColor = isOn and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 75) -- Azul para ON
+            local targetColor = isOn and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(60, 60, 75)
             local targetTextColor = isOn and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
             button.Text = text .. (isOn and "\n[ATIVO]" or "\n[DESATIVADO]")
 
@@ -335,16 +572,14 @@ local function BuildUI()
             local newState = not modStates[stateKey]
             modStates[stateKey] = newState
             updateButtonState()
-            -- Chamar a função de mod correspondente
             if modFunctions[stateKey] then
                 modFunctions[stateKey](newState)
             end
         end)
 
-        -- Efeito de Hover
         local hoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         button.MouseEnter:Connect(function()
-            if not modStates[stateKey] then -- Apenas se não estiver ativo
+            if not modStates[stateKey] then
                 TweenService:Create(button, hoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(80, 80, 95)}):Play()
             end
         end)
@@ -354,21 +589,257 @@ local function BuildUI()
             end
         end)
 
-        updateButtonState() -- Atualiza o estado inicial do botão
+        updateButtonState()
     end
     
-    -- Criar botões
-    createToggleButton("Voar", "isFlying")
-    createToggleButton("Correr Rápido", "isSpeedEnabled")
-    createToggleButton("Atravessar Paredes", "isNoclipping")
-    createToggleButton("Pulo Infinito", "isInfiniteJumpEnabled")
-    createToggleButton("Teleporte", "isClickTeleportEnabled")
-    createToggleButton("Andar na Água", "isWalkOnWaterEnabled")
+    -- Botões da Página de Movimento
+    createToggleButton("Voar", "isFlying", movementPage)
+    createToggleButton("Correr Rápido", "isSpeedEnabled", movementPage)
+    createToggleButton("Atravessar Paredes", "isNoclipping", movementPage)
+    createToggleButton("Pulo Infinito", "isInfiniteJumpEnabled", movementPage)
+
+    -- Botões da Página de Utilidades
+    createToggleButton("Andar na Água", "isWalkOnWaterEnabled", utilityPage)
+
+-- ==================================================================================
+-- ||                                 LÓGICA DE PÁGINAS                             ||
+-- ==================================================================================
+    local function displayPage(pageName)
+        if uiData.currentPage == pageName then return end
+
+        local currentPageFrame = pagesFrame:FindFirstChild(uiData.currentPage)
+        local nextPageFrame = pagesFrame:FindFirstChild(pageName)
+
+        if not nextPageFrame then return end
+
+        local slideDuration = 0.3
+        local slideTweenInfo = TweenInfo.new(slideDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+        -- Move a página atual para fora da tela (esquerda)
+        if currentPageFrame then
+            TweenService:Create(currentPageFrame, slideTweenInfo, {Position = UDim2.new(-1, 0, 0, 0)}):Play()
+        end
+
+        -- Move a próxima página para a tela
+        nextPageFrame.Position = UDim2.new(1, 0, 0, 0) -- Garante que a próxima página comece à direita
+        TweenService:Create(nextPageFrame, slideTweenInfo, {Position = UDim2.new(0, 0, 0, 0)}):Play()
+
+        uiData.currentPage = pageName
+    end
+
+    -- ==================================================================================
+    -- ||                              ELEMENTOS DA PÁGINA DE TELEPORTE               ||
+    -- ==================================================================================
+
+    -- Teleporte com Clique (toggleButton)
+    createToggleButton("Teleporte com Clique", "isClickTeleportEnabled", teleportPage)
+
+    -- Separador
+    local separator1 = Instance.new("Frame")
+    separator1.Parent = teleportPage
+    separator1.Size = UDim2.new(1, -20, 0, 2)
+    separator1.BackgroundColor3 = Color3.fromRGB(80, 80, 95)
+    separator1.BackgroundTransparency = 0.5
+    separator1.LayoutOrder = teleportListLayout.AbsoluteContentSize.Y + 1 -- Coloca após os botões
+    Instance.new("UICorner", separator1).CornerRadius = UDim.new(0, 1)
+
+    -- Título para Teleportes Salvos
+    local savedTeleportsTitle = Instance.new("TextLabel")
+    savedTeleportsTitle.Parent = teleportPage
+    savedTeleportsTitle.Size = UDim2.new(1, -20, 0, 25)
+    savedTeleportsTitle.BackgroundTransparency = 1
+    savedTeleportsTitle.Text = "Teleportes Salvos"
+    savedTeleportsTitle.Font = Enum.Font.GothamSemibold
+    savedTeleportsTitle.TextSize = 16
+    savedTeleportsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    savedTeleportsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    savedTeleportsTitle.LayoutOrder = teleportListLayout.AbsoluteContentSize.Y + 2
+
+
+    -- Input para Nome do Local
+    local nameInputFrame = Instance.new("Frame")
+    nameInputFrame.Parent = teleportPage
+    nameInputFrame.Size = UDim2.new(1, -20, 0, 30)
+    nameInputFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+    nameInputFrame.LayoutOrder = teleportListLayout.AbsoluteContentSize.Y + 3
+    Instance.new("UICorner", nameInputFrame).CornerRadius = UDim.new(0, 5)
+
+    local nameInput = Instance.new("TextBox")
+    nameInput.Parent = nameInputFrame
+    nameInput.Size = UDim2.new(1, -10, 1, -10)
+    nameInput.Position = UDim2.new(0, 5, 0, 5)
+    nameInput.PlaceholderText = "Nome do Local"
+    nameInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    nameInput.Text = ""
+    nameInput.Font = Enum.Font.Gotham
+    nameInput.TextSize = 14
+    nameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameInput.BackgroundTransparency = 1
+    nameInput.ClearTextOnFocus = false
+
+    -- Botão Salvar Local
+    local saveLocationButton = Instance.new("TextButton")
+    saveLocationButton.Parent = teleportPage
+    saveLocationButton.Size = UDim2.new(1, -20, 0, 30)
+    saveLocationButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    saveLocationButton.Font = Enum.Font.GothamBold
+    saveLocationButton.TextSize = 14
+    saveLocationButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    saveLocationButton.Text = "Salvar Local Atual"
+    saveLocationButton.LayoutOrder = teleportListLayout.AbsoluteContentSize.Y + 4
+    Instance.new("UICorner", saveLocationButton).CornerRadius = UDim.new(0, 5)
+
+    saveLocationButton.MouseButton1Click:Connect(function()
+        local char = localPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local name = nameInput.Text
+            if name == "" or name == "Nome do Local" then
+                name = "Local Salvo " .. (#savedTeleports + 1)
+            end
+            
+            local newCFrame = char.HumanoidRootPart.CFrame
+            local found = false
+            for i, tp in pairs(savedTeleports) do
+                if tp.Name == name then
+                    savedTeleports[i].CFrame = newCFrame
+                    found = true
+                    break
+                end
+            end
+            if not found then
+                table.insert(savedTeleports, {Name = name, CFrame = newCFrame})
+            end
+            
+            saveTeleports()
+            updateTeleportList() -- Atualiza a lista na UI
+            nameInput.Text = "" -- Limpa o input
+        end
+    end)
+
+    local saveHoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    saveLocationButton.MouseEnter:Connect(function() TweenService:Create(saveLocationButton, saveHoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 190, 255)}):Play() end)
+    saveLocationButton.MouseLeave:Connect(function() TweenService:Create(saveLocationButton, saveHoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 170, 255)}):Play() end)
+
+    -- Frame para a lista de teleportes salvos
+    local savedTeleportsFrame = Instance.new("Frame")
+    savedTeleportsFrame.Name = "SavedTeleportsList"
+    savedTeleportsFrame.Parent = teleportPage
+    savedTeleportsFrame.Size = UDim2.new(1, -20, 1, -200) -- Ajusta o tamanho para ocupar o restante da página
+    savedTeleportsFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    savedTeleportsFrame.LayoutOrder = teleportListLayout.AbsoluteContentSize.Y + 5
+    Instance.new("UICorner", savedTeleportsFrame).CornerRadius = UDim.new(0, 8)
+    
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Parent = savedTeleportsFrame
+    scroll.Size = UDim2.new(1, 0, 1, 0)
+    scroll.BackgroundTransparency = 1
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0) -- Será atualizado pelo UIListLayout
+    scroll.ScrollBarThickness = 6
+    scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    scroll.AutomaticCanvasSize = Enum.AutomaticCanvasSize.Y
+
+    local scrollListLayout = Instance.new("UIListLayout")
+    scrollListLayout.Parent = scroll
+    scrollListLayout.Padding = UDim.new(0, 5)
+    scrollListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    scrollListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    scrollListLayout.FillDirection = Enum.FillDirection.Vertical
+
+    local scrollPadding = Instance.new("UIPadding")
+    scrollPadding.Parent = scroll
+    scrollPadding.PaddingTop = UDim.new(0, 5)
+    scrollPadding.PaddingBottom = UDim.new(0, 5)
+    scrollPadding.PaddingLeft = UDim.new(0, 5)
+    scrollPadding.PaddingRight = UDim.new(0, 5)
+
+    -- Função para atualizar a lista de teleportes salvos na UI
+    local function updateTeleportList()
+        -- Limpa a lista existente
+        for _, child in pairs(scroll:GetChildren()) do
+            if child:IsA("Frame") and child.Name == "TeleportEntry" then
+                child:Destroy()
+            end
+        end
+
+        for i, tp in ipairs(savedTeleports) do
+            local entryFrame = Instance.new("Frame")
+            entryFrame.Name = "TeleportEntry"
+            entryFrame.Parent = scroll
+            entryFrame.Size = UDim2.new(1, 0, 0, 40)
+            entryFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+            Instance.new("UICorner", entryFrame).CornerRadius = UDim.new(0, 5)
+
+            local tpNameLabel = Instance.new("TextLabel")
+            tpNameLabel.Parent = entryFrame
+            tpNameLabel.Size = UDim2.new(1, -100, 1, 0)
+            tpNameLabel.Position = UDim2.new(0, 5, 0, 0)
+            tpNameLabel.Text = tp.Name
+            tpNameLabel.Font = Enum.Font.GothamSemibold
+            tpNameLabel.TextSize = 14
+            tpNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            tpNameLabel.BackgroundTransparency = 1
+            tpNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+            local teleportButton = Instance.new("TextButton")
+            teleportButton.Parent = entryFrame
+            teleportButton.Size = UDim2.new(0, 50, 1, 0)
+            teleportButton.Position = UDim2.new(1, -95, 0, 0)
+            teleportButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+            teleportButton.Font = Enum.Font.GothamBold
+            teleportButton.TextSize = 14
+            teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            teleportButton.Text = "Ir"
+            Instance.new("UICorner", teleportButton)
+
+            teleportButton.MouseButton1Click:Connect(function()
+                local char = localPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local targetCFrame = tp.CFrame
+                    -- Teleporta um pouco acima do CFrame salvo para evitar ficar preso
+                    char.HumanoidRootPart.CFrame = targetCFrame + Vector3.new(0, 2, 0)
+                end
+            end)
+            
+            local tpHoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            teleportButton.MouseEnter:Connect(function() TweenService:Create(teleportButton, tpHoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 190, 255)}):Play() end)
+            teleportButton.MouseLeave:Connect(function() TweenService:Create(teleportButton, tpHoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 170, 255)}):Play() end)
+
+
+            local deleteButton = Instance.new("TextButton")
+            deleteButton.Parent = entryFrame
+            deleteButton.Size = UDim2.new(0, 35, 1, 0)
+            deleteButton.Position = UDim2.new(1, -40, 0, 0)
+            deleteButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- Vermelho
+            deleteButton.Font = Enum.Font.GothamBold
+            deleteButton.TextSize = 14
+            deleteButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            deleteButton.Text = "X"
+            Instance.new("UICorner", deleteButton)
+
+            deleteButton.MouseButton1Click:Connect(function()
+                -- Encontra e remove o item da tabela savedTeleports
+                for idx, item in ipairs(savedTeleports) do
+                    if item.Name == tp.Name then
+                        table.remove(savedTeleports, idx)
+                        break
+                    end
+                end
+                saveTeleports()
+                updateTeleportList()
+            end)
+
+            local delHoverTweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            deleteButton.MouseEnter:Connect(function() TweenService:Create(deleteButton, delHoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(220, 70, 70)}):Play() end)
+            deleteButton.MouseLeave:Connect(function() TweenService:Create(deleteButton, delHoverTweenInfo, {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play() end)
+        end
+    end
 
     -- Dragging do painel
     topBar.MouseButton1Down:Connect(function(x, y)
         uiData.isDragging = true
         uiData.dragStartPos = Vector2.new(x, y) - mainFrame.Position.AbsoluteOffset
+        -- Garante que o painel flutua acima dos outros elementos da UI do jogo
+        mainFrame.ZIndex = 11 
     end)
 
     UserInputService.InputChanged:Connect(function(input)
@@ -380,8 +851,16 @@ local function BuildUI()
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             uiData.isDragging = false
+            mainFrame.ZIndex = 10 -- Volta ao ZIndex normal
         end
     end)
+
+    -- Carrega os teleportes salvos ao construir a UI e atualiza a lista
+    loadTeleports()
+    updateTeleportList()
+
+    -- Inicializa a exibição da página principal
+    displayPage("Main")
 end
 
 --==================================================================================--
@@ -413,22 +892,21 @@ local function Initialize()
     end
     localPlayer.CharacterAdded:Connect(onCharacterAdded)
 
-    -- Evento para Click Teleport
+    -- Evento para Click Teleport (mantido aqui para que seja globalmente ativo quando o mod estiver ligado)
+    -- A ativação/desativação real é controlada pela função toggleClickTeleport e a variável modStates.isClickTeleportEnabled
     mouse.Button1Down:Connect(function()
-        if modStates.isClickTeleportEnabled and mouse.Target and mouse.TargetSurface ~= Enum.SurfaceType.Top then -- Evita teleportar para cima de si mesmo
+        if modStates.isClickTeleportEnabled and mouse.Target and mouse.Target.Parent ~= localPlayer.Character then
             local char = localPlayer.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 local targetPosition = mouse.Hit.p
-                -- Teleporta um pouco acima para evitar ficar preso no chão
+                -- Teleporta um pouco acima para evitar ficar preso no chão ou em objetos pequenos
                 char.HumanoidRootPart.CFrame = CFrame.new(targetPosition.X, targetPosition.Y + 2, targetPosition.Z)
             end
         end
     end)
     
     -- BindToRenderStep para Noclip e Speed (manter a compatibilidade, mas a lógica foi movida para as funções toggle)
-    -- Removemos a lógica de speed e noclip daqui, pois agora é gerenciada pelas funções toggle
-    -- Isso garante que as alterações só aconteçam quando o mod está ativo/desativado, não em todo RenderStep
-    RunService:BindToRenderStep("BrookhavenFunMod_NoclipSpeedChecker", Enum.RenderPriority.Character.Value + 1, function()
+    RunService:BindToRenderStep("BrookhavenFunMod_PostRenderCheck", Enum.RenderPriority.Character.Value + 1, function()
         local char = localPlayer.Character
         if not char then return end
         local humanoid = char:FindFirstChildOfClass("Humanoid")
