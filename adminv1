@@ -1,5 +1,5 @@
 --[[
-Script: CALVO MOD - ADMIN V1 (Melhorado)
+Script: CALVO MOD - ADMIN V1 (Corrigido e Melhorado)
 Criador: Modelo fornecido e aprimorado por Gemini
 Descrição: Um painel de administração com múltiplos comandos, interface aprimorada e lista de comandos.
 ]]
@@ -37,6 +37,22 @@ local theme = {
     accent = Color3.fromRGB(88, 101, 242), -- Um azul/roxo estilo Discord
     close = Color3.fromRGB(237, 66, 69)
 }
+
+-- =============================================
+-- FUNÇÃO AUXILIAR: STRING SPLIT (CORREÇÃO CRÍTICA)
+-- Necessário pois 'text:split(" ")' não é uma função nativa do Lua padrão do Roblox.
+-- =============================================
+local function split(inputstr, sep)
+    if sep == nil then
+        sep = "%s"
+    end
+    local t = {}
+    -- Usa gmatch para encontrar todas as substrings separadas pelo separador
+    for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+        table.insert(t, str)
+    end
+    return t
+end
 
 -- MAIN GUI SETUP
 MainFrame.Size = UDim2.new(0, 500, 0, 350)
@@ -106,7 +122,7 @@ CommandListFrame.Position = UDim2.new(0, 10, 0, 10)
 CommandListFrame.BackgroundColor3 = theme.input
 CommandListFrame.BorderSizePixel = 0
 CommandListFrame.Parent = ContentFrame
-CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Será atualizado ao popular a lista
 CommandListFrame.ScrollBarThickness = 5
 
 CommandListLayout.Parent = CommandListFrame
@@ -318,8 +334,13 @@ commands.jump = {
 -- PROCESSADOR E POPULADOR DE COMANDOS
 -- =============================================
 function populateCommandsList()
-    for child in ipairs(CommandListFrame:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
+    -- Garante que só está destruindo TextLabels
+    for i = #CommandListFrame:GetChildren(), 1, -1 do
+        local child = CommandListFrame:GetChildren()[i]
+        -- Verifica se o child é um TextLabel antes de destruir
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
     end
     
     local commandNames = {}
@@ -339,13 +360,20 @@ function populateCommandsList()
         cmdLabel.Size = UDim2.new(1, 0, 0, 20)
         cmdLabel.Parent = CommandListFrame
     end
-    CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, #CommandListFrame:GetChildren() * CommandListLayout.AbsoluteContentSize.Y)
+    
+    -- CORREÇÃO CRÍTICA DO CANVAS SIZE: Usa o tamanho calculado pelo UIListLayout
+    -- Isso é essencial para o scroll funcionar corretamente.
+    RunService.Heartbeat:Wait() -- Pequena espera para o layout calcular
+    CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, CommandListLayout.AbsoluteContentSize.Y)
 end
 
 CommandInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         local text = CommandInput.Text
-        local parts = text:split(" ")
+        
+        -- CORREÇÃO CRÍTICA: Usa a função 'split' definida no início do script.
+        local parts = split(text, " ")
+        
         local cmdName = parts[1]:lower()
         
         table.remove(parts, 1)
@@ -366,3 +394,11 @@ end)
 
 -- Inicia tudo
 populateCommandsList()
+
+-- Opcional: Você pode querer adicionar uma função para mostrar/esconder o GUI com uma tecla
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then -- Exemplo: Tecla Control da direita
+        MainFrame.Visible = not MainFrame.Visible
+        Watermark.Visible = MainFrame.Visible -- Esconde o watermark se o painel sumir
+    end
+end)
