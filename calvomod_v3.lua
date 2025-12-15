@@ -96,7 +96,7 @@ commands.noclip = {
                     for _, part in ipairs(char:GetDescendants()) do
                         if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
                     end
-                end
+                }
             end)
         end
     end
@@ -170,7 +170,7 @@ local function loadCalvoMod()
     HeaderLabel.Parent = SidebarHeader
     
     local TabContainer = Instance.new("Frame")
-    TabContainer.Size = UDim2.new(1, 0, 1, -120) 
+    TabContainer.Size = UDim2.new(1, 0, 1, -120)
     TabContainer.Position = UDim2.new(0, 0, 0, 60)
     TabContainer.BackgroundTransparency = 1
     TabContainer.Parent = Sidebar
@@ -408,14 +408,12 @@ local function loadCalvoMod()
         end
     end)
 
+    -- CORREÇÃO FINAL DE CANVAS SIZE: Forçando a atualização imediata
     MainControls.CanvasSize = UDim2.new(0, 0, 0, MainControls:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20)
 
     MainFrame.Visible = true 
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
-            MainFrame.Visible = not MainFrame.Visible
-        end
-    end)
+    
+    -- REMOÇÃO DA HOTKEY (Melhor para mobile)
     
     local dragging = false
     local dragStart = Vector2.new(0, 0)
