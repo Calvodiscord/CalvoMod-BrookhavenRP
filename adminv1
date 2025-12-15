@@ -1,404 +1,515 @@
 --[[
-Script: CALVO MOD - ADMIN V1 (Corrigido e Melhorado)
-Criador: Modelo fornecido e aprimorado por Gemini
-Descrição: Um painel de administração com múltiplos comandos, interface aprimorada e lista de comandos.
+Script: CALVO MOD V2 - KEY PROTECTED
+Criador: Desenvolvido por Gemini (Melhoria sobre o original)
+Descrição: Painel de administração com Key System, tema Dark e carregamento modular para Brookhaven RP.
 ]]
+
+-- =============================================
+-- CONFIGURAÇÃO DE SEGURANÇA
+-- =============================================
+local VALID_KEY = "Key_BielTeste" -- A CHAVE DE ACESSO
+local MAX_KEY_ATTEMPTS = 3
+local CURRENT_ATTEMPTS = 0
 
 -- SERVICES
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-
--- PLAYER LOCAL
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- UI CONFIGURATION
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.ResetOnSpawn = false
-
-local MainFrame = Instance.new("Frame")
-local Header = Instance.new("Frame")
-local TitleLabel = Instance.new("TextLabel")
-local CloseButton = Instance.new("TextButton")
-local MinimizeButton = Instance.new("TextButton")
-local ContentFrame = Instance.new("Frame")
-local CommandListFrame = Instance.new("ScrollingFrame")
-local CommandListLayout = Instance.new("UIListLayout")
-local CommandInput = Instance.new("TextBox")
-local Watermark = Instance.new("TextLabel")
-
--- THEME / STYLE
+-- =============================================
+-- THEME / STYLE (Dark)
+-- =============================================
 local theme = {
     background = Color3.fromRGB(30, 32, 37),
     header = Color3.fromRGB(25, 26, 30),
     primaryText = Color3.fromRGB(230, 230, 230),
     secondaryText = Color3.fromRGB(150, 150, 150),
     input = Color3.fromRGB(45, 47, 52),
-    accent = Color3.fromRGB(88, 101, 242), -- Um azul/roxo estilo Discord
+    accent = Color3.fromRGB(88, 101, 242), -- Azul/Roxo (Discord-like)
     close = Color3.fromRGB(237, 66, 69)
 }
 
 -- =============================================
--- FUNÇÃO AUXILIAR: STRING SPLIT (CORREÇÃO CRÍTICA)
--- Necessário pois 'text:split(" ")' não é uma função nativa do Lua padrão do Roblox.
+-- FUNÇÕES AUXILIARES
 -- =============================================
+
+-- Função Split (Necessário para processamento de comandos)
 local function split(inputstr, sep)
-    if sep == nil then
-        sep = "%s"
-    end
+    if sep == nil then sep = "%s" end
     local t = {}
-    -- Usa gmatch para encontrar todas as substrings separadas pelo separador
     for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
         table.insert(t, str)
     end
     return t
 end
 
--- MAIN GUI SETUP
-MainFrame.Size = UDim2.new(0, 500, 0, 350)
-MainFrame.Position = UDim2.new(0.5, -250, 0.5, -175)
-MainFrame.BackgroundColor3 = theme.background
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
+-- =============================================
+-- INTERFACE DE KEY SYSTEM
+-- =============================================
+local KeyGui = Instance.new("ScreenGui")
+KeyGui.ResetOnSpawn = false
+KeyGui.Parent = PlayerGui
 
-Header.Size = UDim2.new(1, 0, 0, 35)
-Header.BackgroundColor3 = theme.header
-Header.BorderSizePixel = 0
-Header.Parent = MainFrame
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Size = UDim2.new(0, 300, 0, 150)
+KeyFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+KeyFrame.BackgroundColor3 = theme.background
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Parent = KeyGui
 
-TitleLabel.Size = UDim2.new(1, -70, 1, 0)
-TitleLabel.Position = UDim2.new(0, 10, 0, 0)
-TitleLabel.Text = "CALVO MOD - ADMIN V1"
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextColor3 = theme.primaryText
-TitleLabel.TextSize = 18
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.BackgroundColor3 = theme.header
-TitleLabel.BorderSizePixel = 0
-TitleLabel.Parent = Header
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, 0, 0, 30)
+KeyTitle.Text = "CALVO MOD - KEY SYSTEM"
+KeyTitle.Font = Enum.Font.GothamBold
+KeyTitle.TextColor3 = theme.primaryText
+KeyTitle.TextSize = 18
+KeyTitle.BackgroundColor3 = theme.header
+KeyTitle.BorderSizePixel = 0
+KeyTitle.Parent = KeyFrame
 
-CloseButton.Size = UDim2.new(0, 35, 0, 35)
-CloseButton.Position = UDim2.new(1, -35, 0, 0)
-CloseButton.Text = "X"
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.TextSize = 16
-CloseButton.BackgroundColor3 = theme.close
-CloseButton.BorderSizePixel = 0
-CloseButton.Parent = Header
-CloseButton.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
+local KeyInput = Instance.new("TextBox")
+KeyInput.Size = UDim2.new(1, -40, 0, 40)
+KeyInput.Position = UDim2.new(0.5, -130, 0, 50)
+KeyInput.PlaceholderText = "Insira sua Key Aqui..."
+KeyInput.Font = Enum.Font.Gotham
+KeyInput.TextSize = 16
+KeyInput.TextColor3 = theme.primaryText
+KeyInput.BackgroundColor3 = theme.input
+KeyInput.BorderSizePixel = 0
+KeyInput.ClearTextOnFocus = false
+KeyInput.Parent = KeyFrame
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+StatusLabel.Position = UDim2.new(0, 0, 0, 95)
+StatusLabel.Text = "Aguardando Key..."
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 14
+StatusLabel.TextColor3 = theme.secondaryText
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Parent = KeyFrame
+
+local KeyButton = Instance.new("TextButton")
+KeyButton.Size = UDim2.new(1, -40, 0, 30)
+KeyButton.Position = UDim2.new(0.5, -130, 0, 115)
+KeyButton.Text = "ATUALIZAR & ENTRAR"
+KeyButton.Font = Enum.Font.GothamBold
+KeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyButton.TextSize = 16
+KeyButton.BackgroundColor3 = theme.accent
+KeyButton.BorderSizePixel = 0
+KeyButton.Parent = KeyFrame
+
+-- =============================================
+-- LÓGICA DO KEY SYSTEM
+-- =============================================
+
+local function attemptKeyCheck(key)
+    CURRENT_ATTEMPTS = CURRENT_ATTEMPTS + 1
+    
+    if key == VALID_KEY then
+        StatusLabel.Text = "Key Aceita! Carregando Mod..."
+        KeyGui:Destroy()
+        
+        -- Inicia o Mod após o sucesso
+        wait(0.5)
+        loadCalvoMod() 
+    else
+        if CURRENT_ATTEMPTS >= MAX_KEY_ATTEMPTS then
+            StatusLabel.Text = "Limite de Tentativas Atingido! Fechando."
+            KeyButton.Active = false
+            KeyInput.Active = false
+            wait(2)
+            KeyGui:Destroy()
+            -- Opcional: Você pode adicionar uma linha de código para kickar o jogador aqui.
+        else
+            StatusLabel.Text = string.format("Key Inválida. Tentativas restantes: %d", MAX_KEY_ATTEMPTS - CURRENT_ATTEMPTS)
+        end
+    end
+end
+
+-- Conexão do Botão
+KeyButton.MouseButton1Click:Connect(function()
+    attemptKeyCheck(KeyInput.Text)
 end)
 
-MinimizeButton.Size = UDim2.new(0, 35, 0, 35)
-MinimizeButton.Position = UDim2.new(1, -70, 0, 0)
-MinimizeButton.Text = "_"
-MinimizeButton.Font = Enum.Font.GothamBold
-MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinimizeButton.TextSize = 20
-MinimizeButton.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
-MinimizeButton.BorderSizePixel = 0
-MinimizeButton.Parent = Header
-MinimizeButton.MouseButton1Click:Connect(function()
-    ContentFrame.Visible = not ContentFrame.Visible
-    if ContentFrame.Visible then
-        MainFrame:TweenSize(UDim2.new(0, 500, 0, 350), "Out", "Quad", 0.2, true)
-    else
-        MainFrame:TweenSize(UDim2.new(0, 500, 0, 35), "Out", "Quad", 0.2, true)
+-- Conexão do Input (Enter)
+KeyInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        attemptKeyCheck(KeyInput.Text)
     end
 end)
 
-ContentFrame.Size = UDim2.new(1, 0, 1, -35)
-ContentFrame.Position = UDim2.new(0, 0, 0, 35)
-ContentFrame.BackgroundColor3 = Color3.new(1, 1, 1, 1)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.BorderSizePixel = 0
-ContentFrame.Parent = MainFrame
-
-CommandListFrame.Size = UDim2.new(1, -20, 1, -70)
-CommandListFrame.Position = UDim2.new(0, 10, 0, 10)
-CommandListFrame.BackgroundColor3 = theme.input
-CommandListFrame.BorderSizePixel = 0
-CommandListFrame.Parent = ContentFrame
-CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, 0) -- Será atualizado ao popular a lista
-CommandListFrame.ScrollBarThickness = 5
-
-CommandListLayout.Parent = CommandListFrame
-CommandListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-CommandListLayout.Padding = UDim.new(0, 5)
-
-CommandInput.Size = UDim2.new(1, -20, 0, 40)
-CommandInput.Position = UDim2.new(0, 10, 1, -50)
-CommandInput.PlaceholderText = "Digite um comando... (ex: fly me)"
-CommandInput.Font = Enum.Font.Gotham
-CommandInput.TextSize = 16
-CommandInput.TextColor3 = theme.primaryText
-CommandInput.BackgroundColor3 = theme.input
-CommandInput.BorderSizePixel = 0
-CommandInput.ClearTextOnFocus = false
-CommandInput.Parent = ContentFrame
-
-Watermark.Name = "Watermark"
-Watermark.Text = "CALVO MOD"
-Watermark.Font = Enum.Font.GothamBold
-Watermark.TextSize = 24
-Watermark.TextColor3 = theme.primaryText
-Watermark.TextTransparency = 0.8
-Watermark.TextStrokeTransparency = 0.5
-Watermark.Position = UDim2.new(0.01, 0, 0.01, 0)
-Watermark.Size = UDim2.new(0.3, 0, 0.1, 0)
-Watermark.TextXAlignment = Enum.TextXAlignment.Left
-Watermark.BackgroundTransparency = 1
-Watermark.Parent = ScreenGui
-
-ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-
 -- =============================================
--- SISTEMA DE COMANDOS
+-- INTERFACE PRINCIPAL (CALVO MOD)
+-- Será chamada somente após o Key System ser validado
 -- =============================================
-local commands = {}
-local noclipConnection = nil -- Para controlar o estado do noclip
 
-local function getPlayers(targetName)
-    local targets = {}
-    if not targetName then targetName = "me" end
-    local lowerTargetName = targetName:lower()
+local function loadCalvoMod()
+    -- 1. Definições da GUI (Reutilizadas do V1)
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.ResetOnSpawn = false
+    
+    local MainFrame = Instance.new("Frame")
+    local Header = Instance.new("Frame")
+    local TitleLabel = Instance.new("TextLabel")
+    local CloseButton = Instance.new("TextButton")
+    local MinimizeButton = Instance.new("TextButton")
+    local ContentFrame = Instance.new("Frame")
+    local CommandListFrame = Instance.new("ScrollingFrame")
+    local CommandListLayout = Instance.new("UIListLayout")
+    local CommandInput = Instance.new("TextBox")
+    local Watermark = Instance.new("TextLabel")
 
-    if lowerTargetName == "me" or lowerTargetName == "eu" then
-        table.insert(targets, LocalPlayer)
-    elseif lowerTargetName == "all" or lowerTargetName == "todos" then
-        for _, player in ipairs(Players:GetPlayers()) do
-            table.insert(targets, player)
+    -- 2. Setup dos Elementos (Reutilizadas do V1)
+    -- [Aqui vai todo o código de setup do MainFrame, Header, TitleLabel, etc.
+    -- É o mesmo código da Linha 66 até a Linha 140 do seu script V1, 
+    -- adaptado para ser local dentro desta função. Para economizar espaço,
+    -- considere copiar e colar o bloco de setup UI do V1 neste ponto.]
+
+    MainFrame.Size = UDim2.new(0, 500, 0, 350)
+    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -175)
+    MainFrame.BackgroundColor3 = theme.background
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.Parent = ScreenGui
+
+    Header.Size = UDim2.new(1, 0, 0, 35)
+    Header.BackgroundColor3 = theme.header
+    Header.BorderSizePixel = 0
+    Header.Parent = MainFrame
+
+    TitleLabel.Size = UDim2.new(1, -70, 1, 0)
+    TitleLabel.Position = UDim2.new(0, 10, 0, 0)
+    TitleLabel.Text = "CALVO MOD - ADMIN V2"
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.TextColor3 = theme.primaryText
+    TitleLabel.TextSize = 18
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.BackgroundColor3 = theme.header
+    TitleLabel.BorderSizePixel = 0
+    TitleLabel.Parent = Header
+
+    CloseButton.Size = UDim2.new(0, 35, 0, 35)
+    CloseButton.Position = UDim2.new(1, -35, 0, 0)
+    CloseButton.Text = "X"
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextSize = 16
+    CloseButton.BackgroundColor3 = theme.close
+    CloseButton.BorderSizePixel = 0
+    CloseButton.Parent = Header
+    CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+    end)
+
+    MinimizeButton.Size = UDim2.new(0, 35, 0, 35)
+    MinimizeButton.Position = UDim2.new(1, -70, 0, 0)
+    MinimizeButton.Text = "_"
+    MinimizeButton.Font = Enum.Font.GothamBold
+    MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MinimizeButton.TextSize = 20
+    MinimizeButton.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+    MinimizeButton.BorderSizePixel = 0
+    MinimizeButton.Parent = Header
+    MinimizeButton.MouseButton1Click:Connect(function()
+        ContentFrame.Visible = not ContentFrame.Visible
+        if ContentFrame.Visible then
+            MainFrame:TweenSize(UDim2.new(0, 500, 0, 350), "Out", "Quad", 0.2, true)
+        else
+            MainFrame:TweenSize(UDim2.new(0, 500, 0, 35), "Out", "Quad", 0.2, true)
         end
-    else
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Name:lower():match("^" .. lowerTargetName) then
+    end)
+
+    ContentFrame.Size = UDim2.new(1, 0, 1, -35)
+    ContentFrame.Position = UDim2.new(0, 0, 0, 35)
+    ContentFrame.BackgroundColor3 = Color3.new(1, 1, 1, 1)
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.BorderSizePixel = 0
+    ContentFrame.Parent = MainFrame
+
+    CommandListFrame.Size = UDim2.new(1, -20, 1, -70)
+    CommandListFrame.Position = UDim2.new(0, 10, 0, 10)
+    CommandListFrame.BackgroundColor3 = theme.input
+    CommandListFrame.BorderSizePixel = 0
+    CommandListFrame.Parent = ContentFrame
+    CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    CommandListFrame.ScrollBarThickness = 5
+
+    CommandListLayout.Parent = CommandListFrame
+    CommandListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    CommandListLayout.Padding = UDim.new(0, 5)
+
+    CommandInput.Size = UDim2.new(1, -20, 0, 40)
+    CommandInput.Position = UDim2.new(0, 10, 1, -50)
+    CommandInput.PlaceholderText = "Digite um comando... (ex: fly me)"
+    CommandInput.Font = Enum.Font.Gotham
+    CommandInput.TextSize = 16
+    CommandInput.TextColor3 = theme.primaryText
+    CommandInput.BackgroundColor3 = theme.input
+    CommandInput.BorderSizePixel = 0
+    CommandInput.ClearTextOnFocus = false
+    CommandInput.Parent = ContentFrame
+
+    Watermark.Name = "Watermark"
+    Watermark.Text = "CALVO MOD V2"
+    Watermark.Font = Enum.Font.GothamBold
+    Watermark.TextSize = 24
+    Watermark.TextColor3 = theme.primaryText
+    Watermark.TextTransparency = 0.8
+    Watermark.TextStrokeTransparency = 0.5
+    Watermark.Position = UDim2.new(0.01, 0, 0.01, 0)
+    Watermark.Size = UDim2.new(0.3, 0, 0.1, 0)
+    Watermark.TextXAlignment = Enum.TextXAlignment.Left
+    Watermark.BackgroundTransparency = 1
+    Watermark.Parent = ScreenGui
+
+    ScreenGui.Parent = PlayerGui -- Coloca a GUI principal
+
+    -- 3. SISTEMA DE COMANDOS (Reutilizado do V1)
+    
+    local commands = {}
+    local noclipConnection = nil
+
+    local function getPlayers(targetName)
+        local targets = {}
+        if not targetName then targetName = "me" end
+        local lowerTargetName = targetName:lower()
+
+        if lowerTargetName == "me" or lowerTargetName == "eu" then
+            table.insert(targets, LocalPlayer)
+        elseif lowerTargetName == "all" or lowerTargetName == "todos" then
+            for _, player in ipairs(Players:GetPlayers()) do
                 table.insert(targets, player)
             end
-        end
-    end
-    return targets
-end
-
--- =============================================
--- LISTA DE COMANDOS
--- Adicione novos comandos aqui!
--- =============================================
-
-commands.fly = {
-    description = "Voa com velocidade ajustável. Uso: fly [alvo] [vel]",
-    func = function(args)
-        -- Código do comando fly (sem alterações significativas)
-        local targets = getPlayers(args[1] or "me")
-        for _, player in ipairs(targets) do
-            local char = player.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                if char:FindFirstChild("BodyGyro") then return end -- Já está voando
-                
-                local HRP = char.HumanoidRootPart
-                local speed = tonumber(args[2]) or 50
-
-                local gyro = Instance.new("BodyGyro", HRP)
-                gyro.P = 50000; gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-                gyro.CFrame = HRP.CFrame
-
-                local vel = Instance.new("BodyVelocity", HRP)
-                vel.velocity = Vector3.new(0, 0.1, 0)
-                vel.maxForce = Vector3.new(9e9, 9e9, 9e9)
-
-                char.Humanoid.PlatformStand = true
-
-                -- O controle do voo foi simplificado para evitar conflitos de input
-            end
-        end
-    end
-}
-
-commands.unfly = {
-    description = "Para de voar. Uso: unfly [alvo]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        for _, player in ipairs(targets) do
-            local char = player.Character
-            if char then
-                if char.HumanoidRootPart:FindFirstChild("BodyGyro") then char.HumanoidRootPart.BodyGyro:Destroy() end
-                if char.HumanoidRootPart:FindFirstChild("BodyVelocity") then char.HumanoidRootPart.BodyVelocity:Destroy() end
-                char.Humanoid.PlatformStand = false
-            end
-        end
-    end
-}
-
-commands.noclip = {
-    description = "Ativa/desativa a habilidade de atravessar paredes. Uso: noclip",
-    func = function(args)
-        if noclipConnection then
-            noclipConnection:Disconnect()
-            noclipConnection = nil
-            print("Noclip Desativado")
         else
-            print("Noclip Ativado")
-            noclipConnection = RunService.Stepped:Connect(function()
-                local char = LocalPlayer.Character
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player.Name:lower():match("^" .. lowerTargetName) then
+                    table.insert(targets, player)
+                end
+            end
+        end
+        return targets
+    end
+
+    -- =============================================
+    -- LISTA DE COMANDOS (Comandos Reutilizados)
+    -- =============================================
+    -- [Aqui vai toda a lista de comandos (fly, unfly, noclip, speed, etc.)
+    -- É o mesmo código da Linha 188 até a Linha 309 do seu script V1.]
+    
+    commands.fly = {
+        description = "Voa com velocidade ajustável. Uso: fly [alvo] [vel]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            for _, player in ipairs(targets) do
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    if char:FindFirstChild("BodyGyro") then return end
+                    
+                    local HRP = char.HumanoidRootPart
+                    local speed = tonumber(args[2]) or 50
+
+                    local gyro = Instance.new("BodyGyro", HRP)
+                    gyro.P = 50000; gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+                    gyro.CFrame = HRP.CFrame
+
+                    local vel = Instance.new("BodyVelocity", HRP)
+                    vel.velocity = Vector3.new(0, 0.1, 0)
+                    vel.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+                    char.Humanoid.PlatformStand = true
+                end
+            end
+        end
+    }
+
+    commands.unfly = {
+        description = "Para de voar. Uso: unfly [alvo]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            for _, player in ipairs(targets) do
+                local char = player.Character
                 if char then
-                    for _, part in ipairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then
-                           part.CanCollide = false
+                    if char.HumanoidRootPart:FindFirstChild("BodyGyro") then char.HumanoidRootPart.BodyGyro:Destroy() end
+                    if char.HumanoidRootPart:FindFirstChild("BodyVelocity") then char.HumanoidRootPart.BodyVelocity:Destroy() end
+                    char.Humanoid.PlatformStand = false
+                end
+            end
+        end
+    }
+
+    commands.noclip = {
+        description = "Ativa/desativa a habilidade de atravessar paredes. Uso: noclip",
+        func = function(args)
+            if noclipConnection then
+                noclipConnection:Disconnect()
+                noclipConnection = nil
+                print("Noclip Desativado")
+            else
+                print("Noclip Ativado")
+                noclipConnection = RunService.Stepped:Connect(function()
+                    local char = LocalPlayer.Character
+                    if char then
+                        for _, part in ipairs(char:GetDescendants()) do
+                            if part:IsA("BasePart") and part.CanCollide then
+                               part.CanCollide = false
+                            end
                         end
                     end
+                end)
+            end
+        end
+    }
+
+    commands.speed = {
+        description = "Altera a velocidade de caminhada. Uso: speed [alvo] [vel]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            local speedValue = tonumber(args[2]) or 100
+            for _, player in ipairs(targets) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.WalkSpeed = speedValue
                 end
-            end)
-        end
-    end
-}
-
-commands.speed = {
-    description = "Altera a velocidade de caminhada. Uso: speed [alvo] [vel]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        local speedValue = tonumber(args[2]) or 100
-        for _, player in ipairs(targets) do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.WalkSpeed = speedValue
             end
         end
-    end
-}
+    }
 
-commands.ws = {
-    description = "Reseta a velocidade de caminhada para o padrão. Uso: ws [alvo]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        for _, player in ipairs(targets) do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.WalkSpeed = 16 -- Velocidade padrão
+    commands.ws = {
+        description = "Reseta a velocidade de caminhada para o padrão. Uso: ws [alvo]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            for _, player in ipairs(targets) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.WalkSpeed = 16 -- Velocidade padrão
+                end
             end
         end
-    end
-}
+    }
 
-commands.kill = {
-    description = "Mata o jogador alvo. Uso: kill [alvo]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        for _, player in ipairs(targets) do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.Health = 0
+    commands.kill = {
+        description = "Mata o jogador alvo. Uso: kill [alvo]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            for _, player in ipairs(targets) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.Health = 0
+                end
             end
         end
-    end
-}
+    }
 
-commands.god = {
-    description = "Deixa o alvo imortal. Uso: god [alvo]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        for _, player in ipairs(targets) do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.MaxHealth = math.huge
-                player.Character.Humanoid.Health = math.huge
+    commands.god = {
+        description = "Deixa o alvo imortal. Uso: god [alvo]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            for _, player in ipairs(targets) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.MaxHealth = math.huge
+                    player.Character.Humanoid.Health = math.huge
+                end
             end
         end
-    end
-}
+    }
 
-commands.ungod = {
-    description = "Remove a imortalidade do alvo. Uso: ungod [alvo]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        for _, player in ipairs(targets) do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.MaxHealth = 100 -- Padrão
-                player.Character.Humanoid.Health = 100
+    commands.ungod = {
+        description = "Remove a imortalidade do alvo. Uso: ungod [alvo]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            for _, player in ipairs(targets) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.MaxHealth = 100 -- Padrão
+                    player.Character.Humanoid.Health = 100
+                end
             end
         end
-    end
-}
+    }
 
-commands.jump = {
-    description = "Altera a força do pulo. Uso: jump [alvo] [força]",
-    func = function(args)
-        local targets = getPlayers(args[1] or "me")
-        local power = tonumber(args[2]) or 100
-        for _, player in ipairs(targets) do
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.JumpPower = power
+    commands.jump = {
+        description = "Altera a força do pulo. Uso: jump [alvo] [força]",
+        func = function(args)
+            local targets = getPlayers(args[1] or "me")
+            local power = tonumber(args[2]) or 100
+            for _, player in ipairs(targets) do
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    player.Character.Humanoid.JumpPower = power
+                end
             end
         end
-    end
-}
-
--- =============================================
--- PROCESSADOR E POPULADOR DE COMANDOS
--- =============================================
-function populateCommandsList()
-    -- Garante que só está destruindo TextLabels
-    for i = #CommandListFrame:GetChildren(), 1, -1 do
-        local child = CommandListFrame:GetChildren()[i]
-        -- Verifica se o child é um TextLabel antes de destruir
-        if child:IsA("TextLabel") then
-            child:Destroy()
-        end
-    end
+    }
     
-    local commandNames = {}
-    for name in pairs(commands) do table.insert(commandNames, name) end
-    table.sort(commandNames)
-
-    for _, cmdName in ipairs(commandNames) do
-        local cmdData = commands[cmdName]
-        local cmdLabel = Instance.new("TextLabel")
-        cmdLabel.Text = "  " .. cmdName .. " - " .. cmdData.description
-        cmdLabel.Font = Enum.Font.Gotham
-        cmdLabel.TextSize = 14
-        cmdLabel.TextColor3 = theme.secondaryText
-        cmdLabel.TextXAlignment = Enum.TextXAlignment.Left
-        cmdLabel.BackgroundColor3 = theme.input
-        cmdLabel.BackgroundTransparency = 1
-        cmdLabel.Size = UDim2.new(1, 0, 0, 20)
-        cmdLabel.Parent = CommandListFrame
-    end
+    -- 4. PROCESSADOR E POPULADOR DE COMANDOS (Corrigido do V1)
     
-    -- CORREÇÃO CRÍTICA DO CANVAS SIZE: Usa o tamanho calculado pelo UIListLayout
-    -- Isso é essencial para o scroll funcionar corretamente.
-    RunService.Heartbeat:Wait() -- Pequena espera para o layout calcular
-    CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, CommandListLayout.AbsoluteContentSize.Y)
+    local function populateCommandsList()
+        -- Limpa a lista
+        for i = #CommandListFrame:GetChildren(), 1, -1 do
+            local child = CommandListFrame:GetChildren()[i]
+            if child:IsA("TextLabel") then
+                child:Destroy()
+            end
+        end
+        
+        local commandNames = {}
+        for name in pairs(commands) do table.insert(commandNames, name) end
+        table.sort(commandNames)
+
+        for _, cmdName in ipairs(commandNames) do
+            local cmdData = commands[cmdName]
+            local cmdLabel = Instance.new("TextLabel")
+            cmdLabel.Text = "  " .. cmdName .. " - " .. cmdData.description
+            cmdLabel.Font = Enum.Font.Gotham
+            cmdLabel.TextSize = 14
+            cmdLabel.TextColor3 = theme.secondaryText
+            cmdLabel.TextXAlignment = Enum.TextXAlignment.Left
+            cmdLabel.BackgroundColor3 = theme.input
+            cmdLabel.BackgroundTransparency = 1
+            cmdLabel.Size = UDim2.new(1, 0, 0, 20)
+            cmdLabel.Parent = CommandListFrame
+        end
+        
+        -- Aplica a correção do CanvasSize
+        RunService.Heartbeat:Wait()
+        CommandListFrame.CanvasSize = UDim2.new(0, 0, 0, CommandListLayout.AbsoluteContentSize.Y)
+    end
+
+    CommandInput.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local text = CommandInput.Text
+            local parts = split(text, " ") -- Usa a função split global
+
+            if #parts == 0 then CommandInput.Text = ""; return end
+            
+            local cmdName = parts[1]:lower()
+            
+            table.remove(parts, 1)
+            local args = parts
+            
+            if commands[cmdName] and commands[cmdName].func then
+                local success, err = pcall(commands[cmdName].func, args)
+                if not success then
+                    warn("Erro ao executar '" .. cmdName .. "': " .. tostring(err))
+                end
+            else
+                warn("Comando não encontrado: " .. cmdName)
+            end
+            
+            CommandInput.Text = ""
+        end
+    end)
+
+    -- Inicia tudo do mod
+    populateCommandsList()
+
+    -- Sistema de Mostrar/Esconder (HotKey)
+    MainFrame.Visible = true -- Garante que está visível ao carregar
+    Watermark.Visible = true
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
+            MainFrame.Visible = not MainFrame.Visible
+            Watermark.Visible = MainFrame.Visible
+        end
+    end)
 end
-
-CommandInput.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        local text = CommandInput.Text
-        
-        -- CORREÇÃO CRÍTICA: Usa a função 'split' definida no início do script.
-        local parts = split(text, " ")
-        
-        local cmdName = parts[1]:lower()
-        
-        table.remove(parts, 1)
-        local args = parts
-        
-        if commands[cmdName] and commands[cmdName].func then
-            local success, err = pcall(commands[cmdName].func, args)
-            if not success then
-                warn("Erro ao executar '" .. cmdName .. "': " .. tostring(err))
-            end
-        else
-            warn("Comando não encontrado: " .. cmdName)
-        end
-        
-        CommandInput.Text = ""
-    end
-end)
-
--- Inicia tudo
-populateCommandsList()
-
--- Opcional: Você pode querer adicionar uma função para mostrar/esconder o GUI com uma tecla
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then -- Exemplo: Tecla Control da direita
-        MainFrame.Visible = not MainFrame.Visible
-        Watermark.Visible = MainFrame.Visible -- Esconde o watermark se o painel sumir
-    end
-end)
