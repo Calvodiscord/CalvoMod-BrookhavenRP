@@ -1,25 +1,29 @@
 --[[
-Script: CALVO MOD V3 - FINAL (Layout Corrigido)
+Script: CALVO MOD V3 - FINAL (Correção de Inicialização)
 Criador: Desenvolvido por Gemini
-Descrição: Estrutura modular (Dark, Sidebar) com layout de conteúdo corrigido para o design de colunas.
+Descrição: Estrutura modular (Dark, Sidebar) com correção para garantir que o painel GUI apareça.
 ]]
 
 -- SERVICES
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+-- MUDANÇA CRÍTICA: Não usar WaitForChild diretamente aqui.
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local PlayerGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+
+-- Se LocalPlayer ou PlayerGui não existirem, o script irá falhar aqui.
+if not LocalPlayer or not PlayerGui then return end -- Sai se não houver LocalPlayer ou GUI.
 
 -- THEME (Dark & Modern)
 local theme = {
     -- Cores Principais
-    background = Color3.fromRGB(30, 32, 37), -- Fundo do Conteúdo
-    sidebar = Color3.fromRGB(20, 22, 27),    -- Fundo da Sidebar
-    card = Color3.fromRGB(40, 42, 47),       -- Fundo dos cartões/controles
+    background = Color3.fromRGB(30, 32, 37), 
+    sidebar = Color3.fromRGB(20, 22, 27),    
+    card = Color3.fromRGB(40, 42, 47),       
     primaryText = Color3.fromRGB(230, 230, 230),
     secondaryText = Color3.fromRGB(150, 150, 150),
-    accent = Color3.fromRGB(88, 101, 242),   -- Azul/Roxo (Ativo/Accent)
+    accent = Color3.fromRGB(88, 101, 242),   
     close = Color3.fromRGB(237, 66, 69),
     
     -- Tamanhos
@@ -105,7 +109,7 @@ commands.noclip = {
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
                         if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
-                    </p>
+                    end
                 end
             end)
         end
@@ -118,7 +122,7 @@ commands.speed = {
         for _, player in ipairs(targets) do
             if player.Character and player.Character:FindFirstChild("Humanoid") then
                 player.Character.Humanoid.WalkSpeed = speedValue
-            </p>
+            end
         end
     end
 }
@@ -149,16 +153,21 @@ commands.kill = {
 -- =============================================
 
 local function loadCalvoMod()
-    local ScreenGui = Instance.new("ScreenGui"); ScreenGui.ResetOnSpawn = false; ScreenGui.Parent = PlayerGui
+    -- MUDANÇA CRÍTICA: Instanciar ScreenGui e parentar (anexar) imediatamente
+    local ScreenGui = Instance.new("ScreenGui"); 
+    ScreenGui.ResetOnSpawn = false; 
+    ScreenGui.Parent = PlayerGui -- Garante que a GUI é colocada no local correto
+    
     local MainFrame = Instance.new("Frame"); 
     
     -- MainFrame Setup
+    local theme = theme -- Garante acesso às variáveis de tema dentro da função
     MainFrame.Size = UDim2.new(0, theme.W, 0, theme.H)
     MainFrame.Position = UDim2.new(0.5, -theme.W/2, 0.5, -theme.H/2) 
     MainFrame.BackgroundColor3 = theme.background
     MainFrame.BorderSizePixel = 0
     MainFrame.Active = true
-    MainFrame.Parent = ScreenGui
+    MainFrame.Parent = ScreenGui -- Anexa a MainFrame ao ScreenGui
     
     -- SIDEBAR (Barra Lateral)
     local Sidebar = Instance.new("Frame")
@@ -279,7 +288,7 @@ local function loadCalvoMod()
         ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
         ContentLayout.Parent = page
         
-        -- Título da Página (Separado para não ser afetado pela rolagem)
+        -- Título da Página 
         local PageTitle = Instance.new("TextLabel")
         PageTitle.Size = UDim2.new(1, 0, 0, 40)
         PageTitle.Text = name .. " Controls" 
