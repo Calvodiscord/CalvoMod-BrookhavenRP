@@ -170,7 +170,7 @@ local function loadCalvoMod()
     HeaderLabel.Parent = SidebarHeader
     
     local TabContainer = Instance.new("Frame")
-    TabContainer.Size = UDim2.new(1, 0, 1, -120)
+    TabContainer.Size = UDim2.new(1, 0, 1, -120) 
     TabContainer.Position = UDim2.new(0, 0, 0, 60)
     TabContainer.BackgroundTransparency = 1
     TabContainer.Parent = Sidebar
@@ -408,7 +408,6 @@ local function loadCalvoMod()
         end
     end)
 
-    RunService.Heartbeat:Wait()
     MainControls.CanvasSize = UDim2.new(0, 0, 0, MainControls:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20)
 
     MainFrame.Visible = true 
@@ -446,5 +445,4 @@ local function loadCalvoMod()
     selectTab("Main", TABS.Main.Button) 
 end
 
--- INICIA O MOD
 loadCalvoMod()
