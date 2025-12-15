@@ -1,32 +1,21 @@
---[[
-Script: CALVO MOD V3 - FINAL (Correção de Inicialização)
-Criador: Desenvolvido por Gemini
-Descrição: Estrutura modular (Dark, Sidebar) com correção para garantir que o painel GUI apareça.
-]]
-
 -- SERVICES
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
--- MUDANÇA CRÍTICA: Não usar WaitForChild diretamente aqui.
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
 
--- Se LocalPlayer ou PlayerGui não existirem, o script irá falhar aqui.
-if not LocalPlayer or not PlayerGui then return end -- Sai se não houver LocalPlayer ou GUI.
+if not LocalPlayer or not PlayerGui then return end
 
--- THEME (Dark & Modern)
+-- THEME
 local theme = {
-    -- Cores Principais
-    background = Color3.fromRGB(30, 32, 37), 
-    sidebar = Color3.fromRGB(20, 22, 27),    
-    card = Color3.fromRGB(40, 42, 47),       
+    background = Color3.fromRGB(30, 32, 37),
+    sidebar = Color3.fromRGB(20, 22, 27),   
+    card = Color3.fromRGB(40, 42, 47),      
     primaryText = Color3.fromRGB(230, 230, 230),
     secondaryText = Color3.fromRGB(150, 150, 150),
-    accent = Color3.fromRGB(88, 101, 242),   
+    accent = Color3.fromRGB(88, 101, 242),  
     close = Color3.fromRGB(237, 66, 69),
-    
-    -- Tamanhos
     W = 800, 
     H = 500, 
     SIDEBAR_W = 180, 
@@ -50,7 +39,6 @@ local function getPlayers(targetName)
     local targets = {}
     if not targetName then targetName = "me" end
     local lowerTargetName = targetName:lower()
-
     if lowerTargetName == "me" or lowerTargetName == "eu" then
         table.insert(targets, LocalPlayer)
     elseif lowerTargetName == "all" or lowerTargetName == "todos" then
@@ -67,9 +55,7 @@ local function getPlayers(targetName)
     return targets
 end
 
--- =============================================
--- DEFINIÇÃO DOS COMANDOS (LÓGICA DO HACK)
--- =============================================
+-- DEFINIÇÃO DOS COMANDOS
 commands.fly = {
     func = function(args)
         local targets = getPlayers(args[1] or "me")
@@ -148,35 +134,26 @@ commands.kill = {
     end
 }
 
--- =============================================
--- INTERFACE PRINCIPAL (SIDEBAR)
--- =============================================
-
+-- INTERFACE PRINCIPAL
 local function loadCalvoMod()
-    -- MUDANÇA CRÍTICA: Instanciar ScreenGui e parentar (anexar) imediatamente
     local ScreenGui = Instance.new("ScreenGui"); 
     ScreenGui.ResetOnSpawn = false; 
-    ScreenGui.Parent = PlayerGui -- Garante que a GUI é colocada no local correto
+    ScreenGui.Parent = PlayerGui
     
     local MainFrame = Instance.new("Frame"); 
-    
-    -- MainFrame Setup
-    local theme = theme -- Garante acesso às variáveis de tema dentro da função
     MainFrame.Size = UDim2.new(0, theme.W, 0, theme.H)
     MainFrame.Position = UDim2.new(0.5, -theme.W/2, 0.5, -theme.H/2) 
     MainFrame.BackgroundColor3 = theme.background
     MainFrame.BorderSizePixel = 0
     MainFrame.Active = true
-    MainFrame.Parent = ScreenGui -- Anexa a MainFrame ao ScreenGui
+    MainFrame.Parent = ScreenGui
     
-    -- SIDEBAR (Barra Lateral)
     local Sidebar = Instance.new("Frame")
     Sidebar.Size = UDim2.new(0, theme.SIDEBAR_W, 1, 0)
     Sidebar.BackgroundColor3 = theme.sidebar
     Sidebar.BorderSizePixel = 0
     Sidebar.Parent = MainFrame
     
-    -- Sidebar Header (CALVO MOD)
     local SidebarHeader = Instance.new("Frame")
     SidebarHeader.Size = UDim2.new(1, 0, 0, 60)
     SidebarHeader.BackgroundColor3 = theme.sidebar
@@ -192,9 +169,8 @@ local function loadCalvoMod()
     HeaderLabel.BackgroundTransparency = 1
     HeaderLabel.Parent = SidebarHeader
     
-    -- Container das Abas
     local TabContainer = Instance.new("Frame")
-    TabContainer.Size = UDim2.new(1, 0, 1, -120) -- 60 Header + 60 Footer
+    TabContainer.Size = UDim2.new(1, 0, 1, -120)
     TabContainer.Position = UDim2.new(0, 0, 0, 60)
     TabContainer.BackgroundTransparency = 1
     TabContainer.Parent = Sidebar
@@ -204,7 +180,6 @@ local function loadCalvoMod()
     TabListLayout.SortOrder = Enum.SortOrder.LayoutOrder
     TabListLayout.Parent = TabContainer
     
-    -- Footer (Disconnect)
     local Footer = Instance.new("Frame")
     Footer.Size = UDim2.new(1, 0, 0, 60)
     Footer.Position = UDim2.new(0, 0, 1, -60)
@@ -222,7 +197,6 @@ local function loadCalvoMod()
     DisconnectButton.Parent = Footer
     DisconnectButton.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
     
-    -- CONTENT PANEL (Conteúdo Principal)
     local ContentPanel = Instance.new("Frame")
     ContentPanel.Size = UDim2.new(1, -theme.SIDEBAR_W, 1, 0)
     ContentPanel.Position = UDim2.new(0, theme.SIDEBAR_W, 0, 0)
@@ -236,7 +210,6 @@ local function loadCalvoMod()
     PageContainer.BackgroundTransparency = 1
     PageContainer.Parent = ContentPanel
     
-    -- SISTEMA DE ABAS (PÁGINAS)
     local TABS = {
         Main = {Name = "Main", Icon = "⚡", Page = nil}, 
         Teleports = {Name = "Teleports", Icon = "📍", Page = nil},
@@ -249,7 +222,6 @@ local function loadCalvoMod()
     local function selectTab(tabName, tabButton)
         if currentTab == tabName then return end
         
-        -- Resetar o estado de todos os botões e páginas
         for _, tab in pairs(TABS) do
             if tab.Page then tab.Page.Visible = false end
             if tab.Button then
@@ -259,7 +231,6 @@ local function loadCalvoMod()
             end
         end
         
-        -- Ativar a nova aba
         local tab = TABS[tabName]
         if tab.Page then tab.Page.Visible = true end
         
@@ -270,9 +241,7 @@ local function loadCalvoMod()
         currentTab = tabName
     end
     
-    -- Criação das Abas
     for name, data in pairs(TABS) do
-        -- Cria a Página (Frame de Conteúdo)
         local page = Instance.new("ScrollingFrame")
         page.Name = name .. "Page"
         page.Size = UDim2.new(1, 0, 1, 0)
@@ -282,13 +251,11 @@ local function loadCalvoMod()
         page.Parent = PageContainer
         data.Page = page
 
-        -- Layout para o conteúdo da página
         local ContentLayout = Instance.new("UIListLayout")
         ContentLayout.Padding = UDim.new(0, theme.PADDING)
         ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
         ContentLayout.Parent = page
         
-        -- Título da Página 
         local PageTitle = Instance.new("TextLabel")
         PageTitle.Size = UDim2.new(1, 0, 0, 40)
         PageTitle.Text = name .. " Controls" 
@@ -300,7 +267,6 @@ local function loadCalvoMod()
         PageTitle.LayoutOrder = 1 
         PageTitle.Parent = page
         
-        -- Cria o Botão da Barra Lateral
         local tabButton = Instance.new("TextButton")
         local UICorner = Instance.new("UICorner", tabButton); UICorner.CornerRadius = UDim.new(0, 5)
         tabButton.Name = name .. "Button"
@@ -333,10 +299,8 @@ local function loadCalvoMod()
         end)
     end
     
-    -- 5. CONTEÚDO (EXEMPLO DA ABA MAIN)
     local MainControls = TABS.Main.Page
     
-    -- Card Atributos (WalkSpeed/JumpPower)
     local AttributesCard = Instance.new("Frame")
     AttributesCard.Size = UDim2.new(1, 0, 0, 180) 
     AttributesCard.BackgroundColor3 = theme.card
@@ -355,7 +319,6 @@ local function loadCalvoMod()
     AttTitle.BackgroundTransparency = 1
     AttTitle.Parent = AttributesCard
     
-    -- Reset Button (Simples)
     local ResetButton = Instance.new("TextButton")
     ResetButton.Size = UDim2.new(1, -30, 0, 30)
     ResetButton.Position = UDim2.new(0.5, -300/2, 0, 140)
@@ -371,7 +334,6 @@ local function loadCalvoMod()
         commands.jump.func({"me", 50})
     end)
     
-    -- Card Ações (Fly, Noclip, God, Jump)
     local ActionsCard = Instance.new("Frame")
     ActionsCard.Size = UDim2.new(1, 0, 0, 150) 
     ActionsCard.BackgroundColor3 = theme.card
@@ -390,7 +352,6 @@ local function loadCalvoMod()
     ActionTitle.BackgroundTransparency = 1
     ActionTitle.Parent = ActionsCard
     
-    -- Container para os botões Fly/Noclip/God/Jump (Para layout de 2 colunas)
     local ButtonContainer = Instance.new("Frame")
     ButtonContainer.Size = UDim2.new(1, -30, 0, 100) 
     ButtonContainer.Position = UDim2.new(0, 15, 0, 40)
@@ -404,7 +365,6 @@ local function loadCalvoMod()
     Grid.StartCorner = Enum.StartCorner.TopLeft
     Grid.Parent = ButtonContainer
 
-    -- Botão Toggle (Fly)
     local FlyButton = Instance.new("TextButton")
     FlyButton.Text = "✈️ Fly"
     FlyButton.Size = UDim2.new(1, 0, 1, 0)
@@ -427,7 +387,6 @@ local function loadCalvoMod()
         end
     end)
     
-    -- Botão Toggle (Noclip)
     local NoclipButton = Instance.new("TextButton")
     NoclipButton.Text = "👻 Noclip"
     NoclipButton.Size = UDim2.new(1, 0, 1, 0) 
@@ -449,11 +408,9 @@ local function loadCalvoMod()
         end
     end)
 
-    -- Atualiza o CanvasSize no final
     RunService.Heartbeat:Wait()
     MainControls.CanvasSize = UDim2.new(0, 0, 0, MainControls:FindFirstChildOfClass("UIListLayout").AbsoluteContentSize.Y + 20)
 
-    -- HotKey
     MainFrame.Visible = true 
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.KeyCode == Enum.KeyCode.RightControl then
@@ -461,7 +418,6 @@ local function loadCalvoMod()
         end
     end)
     
-    -- Draggable (Consertado)
     local dragging = false
     local dragStart = Vector2.new(0, 0)
     local frameStart = UDim2.new(0,0,0,0)
@@ -487,9 +443,8 @@ local function loadCalvoMod()
         end
     end)
     
-    -- Seleciona a aba principal (Main) por padrão
     selectTab("Main", TABS.Main.Button) 
 end
 
--- INICIA O MOD DIRETAMENTE
+-- INICIA O MOD
 loadCalvoMod()
